@@ -1,32 +1,41 @@
 export interface InputState {
   projectName: string;
+  // Step 1
   room: {
-    length: number | '';
-    width: number | '';
-    height: number | '';
-    wallType: 'insulated' | 'not_insulated';
-    tempDifference: number | '';
+    length: number | ''; // meters
+    width: number | ''; // meters
+    height: number | ''; // meters
   };
+  // Step 2
   people: {
     count: number | '';
-    activity: 'sitting' | 'light_work';
-  };
-  windows: {
-    count: number | '';
-    width: number | '';
-    height: number | '';
-    type: 'single_pane' | 'double_pane';
+    activity: 'sitting' | 'light_work' | 'heavy_work';
   };
   lighting: {
     wattage: number | '';
   };
+  // Step 3
+  windows: {
+    area: number | ''; // m²
+    glassType: 'single' | 'double' | 'low_e';
+    direction: 'north' | 'south' | 'east' | 'west';
+    shading: boolean;
+  };
+  // Step 4
   appliances: {
     wattage: number | '';
   };
-  infiltration: {
-    ach: number | '';
+  wallsAndCeiling: {
+    wallArea: number | ''; // m²
+    ceilingArea: number | ''; // m²
+    insulationType: 'none' | 'standard' | 'high';
   };
-  ductLength: number | '';
+  // Step 5
+  environment: {
+    outdoorTemp: number | ''; // C
+    indoorTemp: number | ''; // C
+    buildingType: 'residential' | 'commercial' | 'industrial';
+  };
 }
 
 export interface ResultsState {
@@ -36,7 +45,6 @@ export interface ResultsState {
     lightingW: number;
     appliancesW: number;
     wallsAndCeilingW: number;
-    infiltrationW: number;
     subTotalW: number;
     totalLoadW: number;
     totalLoadBtu: number;
