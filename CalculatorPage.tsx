@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { InputState, ResultsState, Project } from './types';
+import { useLanguage } from './LanguageContext';
 import { 
   HEAT_GAIN_PERSON_WATT, U_VALUE_WINDOW_W_M2K, SOLAR_RADIATION_W_M2,
   U_VALUE_INSULATION_W_M2K, WATT_TO_BTU_FACTOR, WATT_TO_TON_FACTOR,
@@ -18,85 +19,99 @@ const initialInputs: InputState = {
   environment: { outdoorTemp: '', indoorTemp: 24, buildingType: 'residential' },
 };
 
-const STEPS = [
-    { number: 1, title: "المشروع والغرفة", icon: <BuildingIcon /> },
-    { number: 2, title: "الأشخاص والإضاءة", icon: <UsersIcon /> },
-    { number: 3, title: "النوافذ", icon: <WindowIcon /> },
-    { number: 4, title: "الأجهزة والعزل", icon: <PlugIcon /> },
-    { number: 5, title: "البيئة", icon: <ThermometerIcon className="h-6 w-6" /> },
-    { number: 6, title: "التقرير الشامل", icon: <DocumentReportIcon /> }
-];
-
 interface CalculatorPageProps {
   onNavigate: (page: 'home' | 'projects') => void;
   onSaveProject: (inputs: InputState, results: ResultsState) => void;
   activeProject: Project | null;
 }
 
-const formatResultsForText = (inputs: InputState, results: ResultsState): string => {
+const formatResultsForText = (inputs: InputState, results: ResultsState, t: (key: string, replacements?: { [key: string]: string | number }) => string): string => {
   const getNum = (val: number | '') => val || 0;
+  const activity = t(`activity_${inputs.people.activity}`);
+  const direction = t(`direction_${inputs.windows.direction}`);
 
   return `
-تقرير حساب الأحمال الحرارية - Emaar HVAC
+${t('report_text_title')}
 =======================================
-اسم المشروع: ${inputs.projectName || 'غير مسمى'}
-تاريخ الإنشاء: ${new Date().toLocaleString('ar-EG')}
+${t('report_text_projectName', { projectName: inputs.projectName || '...' })}
+${t('report_text_creationDate', { date: new Date().toLocaleString(t.toString().includes('ar') ? 'ar-EG' : 'en-US') })}
 
---- ملخص النتائج ---
-الحمل الكلي: ${results.loads.totalLoadW.toLocaleString('ar-EG', {maximumFractionDigits: 0})} W (${results.loads.totalLoadTons.toFixed(2)} طن)
-تدفق الهواء: ${results.airflow.cfm.toFixed(0)} CFM (بسرعة ${results.airflow.velocityFpm} ft/min)
-قطر الدكت: ${results.ductSizing.roundDiameterIn.toFixed(1)} بوصة (دائري)
-صاج مطلوب: ${results.materials.sheetMetalM2.toFixed(2)} م² (لعازل ${results.materials.insulationM2.toFixed(2)} م²)
+${t('report_text_summary')}
+${t('report_text_totalLoad', { totalLoadW: results.loads.totalLoadW.toLocaleString(), totalLoadTons: results.loads.totalLoadTons.toFixed(2) })}
+${t('report_text_airflow', { cfm: results.airflow.cfm.toFixed(0), velocity: results.airflow.velocityFpm })}
+${t('report_text_ductDiameter', { diameter: results.ductSizing.roundDiameterIn.toFixed(1) })}
+${t('report_text_sheetMetal', { sheetMetal: results.materials.sheetMetalM2.toFixed(2), insulation: results.materials.insulationM2.toFixed(2) })}
 
 =======================================
 
---- الأحمال الحرارية ---
-حمل الأشخاص: ${results.loads.peopleW.toFixed(0)} W
-حمل النوافذ: ${results.loads.windowsW.toFixed(0)} W
-حمل الإضاءة: ${results.loads.lightingW.toFixed(0)} W
-حمل الأجهزة: ${results.loads.appliancesW.toFixed(0)} W
-حمل الجدران والسقف: ${results.loads.wallsAndCeilingW.toFixed(0)} W
+${t('report_text_thermalLoads_section')}
+${t('report_text_peopleLoad', { value: results.loads.peopleW.toFixed(0) })}
+${t('report_text_windowsLoad', { value: results.loads.windowsW.toFixed(0) })}
+${t('report_text_lightingLoad', { value: results.loads.lightingW.toFixed(0) })}
+${t('report_text_appliancesLoad', { value: results.loads.appliancesW.toFixed(0) })}
+${t('report_text_wallsCeilingLoad', { value: results.loads.wallsAndCeilingW.toFixed(0) })}
 -----------------------------------
-الحمل الكلي (قبل الأمان): ${results.loads.subTotalW.toFixed(0)} W
-الحمل الكلي (مع 20% أمان): ${results.loads.totalLoadW.toFixed(0)} W
-- بوحدة BTU/hr: ${results.loads.totalLoadBtu.toFixed(0)} BTU/hr
-- بوحدة طن تبريد: ${results.loads.totalLoadTons.toFixed(2)} طن
+${t('report_text_subTotal', { subTotal: results.loads.subTotalW.toFixed(0) })}
+${t('report_text_totalLoad_with_safety', { totalLoad: results.loads.totalLoadW.toFixed(0) })}
+${t('report_text_inBtu', { btu: results.loads.totalLoadBtu.toFixed(0) })}
+${t('report_text_inTons', { tons: results.loads.totalLoadTons.toFixed(2) })}
 
---- مقاسات الدكتات ---
-تدفق الهواء المطلوب: ${results.airflow.cfm.toFixed(0)} CFM
-سرعة الهواء: ${results.airflow.velocityFpm} ft/min
-مساحة الدكت: ${results.ductSizing.areaSqFt.toFixed(3)} ft²
-الدكت الدائري (القطر): ${results.ductSizing.roundDiameterIn.toFixed(1)} بوصة
-الدكت المستطيل: ${results.ductSizing.rectWidthIn.toFixed(1)} بوصة (عرض) × ${results.ductSizing.rectHeightIn.toFixed(1)} بوصة (ارتفاع)
+${t('report_text_ductSizing_section')}
+${t('report_text_requiredAirflow', { value: results.airflow.cfm.toFixed(0) })}
+${t('report_text_airVelocity', { value: results.airflow.velocityFpm })}
+${t('report_text_ductArea', { value: results.ductSizing.areaSqFt.toFixed(3) })}
+${t('report_text_circularDuct', { value: results.ductSizing.roundDiameterIn.toFixed(1) })}
+${t('report_text_rectDuct', { width: results.ductSizing.rectWidthIn.toFixed(1), height: results.ductSizing.rectHeightIn.toFixed(1) })}
 
---- كميات المواد (لـ 10 متر) ---
-الصاج: ${results.materials.sheetMetalM2.toFixed(2)} متر مربع
-العازل: ${results.materials.insulationM2.toFixed(2)} متر مربع
-الفلنجات: ${results.materials.flanges} قطعة
-المسامير: ${results.materials.screws} مسمار
+${t('report_text_materials_section')}
+${t('report_text_sheetMetalMaterial', { value: results.materials.sheetMetalM2.toFixed(2) })}
+${t('report_text_insulation', { value: results.materials.insulationM2.toFixed(2) })}
+${t('report_text_flanges', { flanges: results.materials.flanges })}
+${t('report_text_screws', { screws: results.materials.screws })}
 
---- المدخلات المستخدمة ---
-أبعاد الغرفة: ${getNum(inputs.room.length)} × ${getNum(inputs.room.width)} × ${getNum(inputs.room.height)} م
-عدد الأشخاص: ${getNum(inputs.people.count)} (${inputs.people.activity})
-مساحة النوافذ: ${getNum(inputs.windows.area)} م² (${inputs.windows.direction})
-قدرة الإضاءة: ${getNum(inputs.lighting.wattage)} واط
-قدرة الأجهزة: ${getNum(inputs.appliances.wattage)} واط
-درجة الحرارة الخارجية: ${getNum(inputs.environment.outdoorTemp)}°س
-درجة الحرارة الداخلية: ${getNum(inputs.environment.indoorTemp)}°س
+${t('report_text_inputs_section')}
+${t('report_text_roomDims', { l: getNum(inputs.room.length), w: getNum(inputs.room.width), h: getNum(inputs.room.height) })}
+${t('report_text_peopleCount', { count: getNum(inputs.people.count), activity })}
+${t('report_text_windowArea', { area: getNum(inputs.windows.area), direction })}
+${t('report_text_lightingWattage', { value: getNum(inputs.lighting.wattage) })}
+${t('report_text_applianceWattage', { value: getNum(inputs.appliances.wattage) })}
+${t('report_text_outdoorTemp', { temp: getNum(inputs.environment.outdoorTemp) })}
+${t('report_text_indoorTemp', { temp: getNum(inputs.environment.indoorTemp) })}
 
---- ملاحظات هامة ---
-✓ تم إضافة معامل أمان 20% للحمل الكلي.
-✓ الحسابات تعتمد على المعادلات القياسية لحساب أحمال التكييف.
-✓ كميات المواد محسوبة لطول 10 متر من الدكت.
-✓ يُنصح بمراجعة مهندس تكييف معتمد قبل التنفيذ.
+${t('report_text_notes_section')}
+${t('report_text_note1')}
+${t('report_text_note2')}
+${t('report_text_note3')}
+${t('report_text_note4')}
 `;
+};
+
+const LanguageSwitcher = () => {
+  const { language, setLanguage } = useLanguage();
+  const toggleLanguage = () => setLanguage(language === 'ar' ? 'en' : 'ar');
+  return (
+    <button onClick={toggleLanguage} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition-colors">
+      {language === 'ar' ? 'English' : 'العربية'}
+    </button>
+  );
 };
 
 const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProject, activeProject }) => {
   const [inputs, setInputs] = useState<InputState>(initialInputs);
   const [results, setResults] = useState<ResultsState | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
-  const [copyButtonText, setCopyButtonText] = useState('نسخ النتائج');
+  const [copyButtonText, setCopyButtonText] = useState('copyResults');
+  const { t } = useLanguage();
+
+  const STEPS = useMemo(() => [
+    { number: 1, title: t('calculator_steps_1'), icon: <BuildingIcon /> },
+    { number: 2, title: t('calculator_steps_2'), icon: <UsersIcon /> },
+    { number: 3, title: t('calculator_steps_3'), icon: <WindowIcon /> },
+    { number: 4, title: t('calculator_steps_4'), icon: <PlugIcon /> },
+    { number: 5, title: t('calculator_steps_5'), icon: <ThermometerIcon className="h-6 w-6" /> },
+    { number: 6, title: t('calculator_steps_6'), icon: <DocumentReportIcon /> }
+  ], [t]);
+
 
   useEffect(() => {
     if (activeProject) {
@@ -113,7 +128,6 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
   const calculateAll = useCallback(() => {
     const getNum = (val: number | '') => val || 0;
 
-    // --- Collect Inputs ---
     const peopleCount = getNum(inputs.people.count);
     const lightingWattage = getNum(inputs.lighting.wattage);
     const windowArea = getNum(inputs.windows.area);
@@ -124,12 +138,7 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
     const indoorTemp = getNum(inputs.environment.indoorTemp);
     const tempDifference = Math.max(0, outdoorTemp - indoorTemp);
 
-    // --- Heat Loads Calculation (W) - Per PRD ---
-
-    // 1. People Load (FR-3.1)
     const peopleLoadW = HEAT_GAIN_PERSON_WATT[inputs.people.activity] * peopleCount;
-
-    // 2. Window Load (FR-3.2)
     const windowUValue = U_VALUE_WINDOW_W_M2K[inputs.windows.glassType];
     const windowConductionLoadW = windowUValue * windowArea * tempDifference;
     let solarRadiation = SOLAR_RADIATION_W_M2[inputs.windows.direction];
@@ -138,34 +147,23 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
     }
     const windowSolarLoadW = solarRadiation * windowArea;
     const windowsLoadW = windowConductionLoadW + windowSolarLoadW;
-
-    // 3. Lighting Load (FR-3.3)
     const lightingLoadW = lightingWattage;
-
-    // 4. Appliance Load (FR-3.4)
     const appliancesLoadW = applianceWattage;
-    
-    // 5. Walls & Ceiling Load (FR-3.5)
     const insulationUValue = U_VALUE_INSULATION_W_M2K[inputs.wallsAndCeiling.insulationType];
     const wallsAndCeilingLoadW = insulationUValue * (wallArea + ceilingArea) * tempDifference;
 
-    // 6. Totals (FR-3.6, FR-3.7)
     const subTotalW = peopleLoadW + windowsLoadW + lightingLoadW + appliancesLoadW + wallsAndCeilingLoadW;
     const totalLoadW = subTotalW * SAFETY_FACTOR;
     const totalLoadBtu = totalLoadW * WATT_TO_BTU_FACTOR;
     const totalLoadTons = totalLoadW / WATT_TO_TON_FACTOR;
 
-    // --- Airflow Calculation (FR-3.8) ---
     const cfm = totalLoadTons * CFM_PER_TON;
-    
-    // --- Duct Sizing (FR-3.9) ---
     const ductAreaSqFt = cfm > 0 ? cfm / DUCT_AIR_VELOCITY : 0;
     const ductAreaSqIn = ductAreaSqFt * 144;
     const roundDiameterIn = Math.sqrt((4 * ductAreaSqIn) / Math.PI);
-    const rectHeightIn = Math.sqrt(ductAreaSqIn / 2); // 2:1 Aspect Ratio
+    const rectHeightIn = Math.sqrt(ductAreaSqIn / 2);
     const rectWidthIn = 2 * rectHeightIn;
 
-    // --- Material Quantities (FR-3.10 for 10m length) ---
     const ductPerimeterM = 2 * (rectWidthIn + rectHeightIn) * INCH_TO_M;
     const sheetMetalM2 = ductPerimeterM * 10;
     const insulationM2 = sheetMetalM2;
@@ -186,9 +184,6 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
     return newResults;
   }, [inputs]);
 
-  // Fix: Constrain the generic type T to exclude 'projectName'.
-  // This ensures that 'section' is always a key pointing to an object in InputState,
-  // preventing a "spread types may only be created from object types" error on `...prev[section]`.
   const handleInputChange = <T extends Exclude<keyof InputState, 'projectName'>>(section: T, field: keyof InputState[T], value: any) => {
     const processedValue = typeof value === 'number' && isNaN(value) ? '' : value;
     setInputs(prev => ({ ...prev, [section]: { ...prev[section], [field]: processedValue } }));
@@ -199,12 +194,12 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
   };
 
   const handleSaveClick = () => {
-    if (!inputs.projectName) { alert("يرجى إدخال اسم للمشروع قبل الحفظ."); return; }
+    if (!inputs.projectName) { alert(t("pleaseEnterProjectName")); return; }
     if (results) onSaveProject(inputs, results);
     else {
       const calculatedResults = calculateAll();
       if(calculatedResults) onSaveProject(inputs, calculatedResults);
-      else alert("لا يمكن حفظ المشروع قبل حساب النتائج.");
+      else alert(t("cannotSaveBeforeCalc"));
     }
   };
 
@@ -212,20 +207,19 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
 
   const handleCopyResults = () => {
     if (results) {
-      const textToCopy = formatResultsForText(inputs, results);
+      const textToCopy = formatResultsForText(inputs, results, t);
       navigator.clipboard.writeText(textToCopy).then(() => {
-        setCopyButtonText('تم النسخ!');
-        setTimeout(() => setCopyButtonText('نسخ النتائج'), 2000);
+        setCopyButtonText('copied');
+        setTimeout(() => setCopyButtonText('copyResults'), 2000);
       }).catch(err => {
         console.error('Failed to copy text: ', err);
-        alert('فشل نسخ النتائج.');
       });
     }
   };
 
   const handleDownloadReport = () => {
     if (results) {
-      const textToDownload = formatResultsForText(inputs, results);
+      const textToDownload = formatResultsForText(inputs, results, t);
       const blob = new Blob([textToDownload], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -247,14 +241,15 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
        <header className="flex justify-between items-center mb-8">
             <div>
                 <h1 className="text-4xl sm:text-5xl font-bold text-cyan-400">Emaar HVAC</h1>
-                <p className="text-lg text-gray-300 mt-2">الحل المتكامل لحساب الأحمال الحرارية وتصميم أنظمة التكييف</p>
+                <p className="text-lg text-gray-300 mt-2">{t('headerSubtitle')}</p>
             </div>
              <div className="flex gap-4">
+                <LanguageSwitcher />
                 <button onClick={() => onNavigate('home')} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition-colors">
-                    → الرئيسية
+                    → {t('home')}
                 </button>
                  <button onClick={() => onNavigate('projects')} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition-colors">
-                    → المشاريع المحفوظة
+                    → {t('projects')}
                 </button>
             </div>
         </header>
@@ -279,88 +274,92 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
         <div className="bg-gray-800 p-6 sm:p-8 rounded-lg min-h-[400px] flex flex-col justify-between">
             {currentStep === 1 && (
                 <div>
-                    <h2 className="text-2xl font-bold mb-6 flex items-center"><FolderIcon />الخطوة 1: معلومات المشروع والغرفة</h2>
+                    {/* Fix: Use a unique translation key for the calculator step title to avoid conflicts. */}
+                    <h2 className="text-2xl font-bold mb-6 flex items-center"><FolderIcon />{t('calculator_step_title_1')}</h2>
                     <div className="space-y-4">
-                         <InputGroup label="اسم المشروع" type="text" value={inputs.projectName} onChange={handleProjectNameChange} placeholder="مثال: فيلا الطابق الأول"/>
+                         <InputGroup label={t('projectName')} type="text" value={inputs.projectName} onChange={handleProjectNameChange} placeholder={t('projectName_placeholder')}/>
                         <hr className="border-gray-700"/>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <InputGroup label="طول الغرفة (متر)" type="number" value={inputs.room.length} onChange={e => handleInputChange('room', 'length', parseFloat(e.target.value))} placeholder="6" />
-                            <InputGroup label="عرض الغرفة (متر)" type="number" value={inputs.room.width} onChange={e => handleInputChange('room', 'width', parseFloat(e.target.value))} placeholder="5" />
-                            <InputGroup label="ارتفاع الغرفة (متر)" type="number" value={inputs.room.height} onChange={e => handleInputChange('room', 'height', parseFloat(e.target.value))} placeholder="3" />
+                            <InputGroup label={t('roomLength')} type="number" value={inputs.room.length} onChange={e => handleInputChange('room', 'length', parseFloat(e.target.value))} placeholder="6" />
+                            <InputGroup label={t('roomWidth')} type="number" value={inputs.room.width} onChange={e => handleInputChange('room', 'width', parseFloat(e.target.value))} placeholder="5" />
+                            <InputGroup label={t('roomHeight')} type="number" value={inputs.room.height} onChange={e => handleInputChange('room', 'height', parseFloat(e.target.value))} placeholder="3" />
                         </div>
                     </div>
                 </div>
             )}
             {currentStep === 2 && (
                  <div>
-                    <h2 className="text-2xl font-bold mb-6 flex items-center"><UsersIcon />الخطوة 2: الأشخاص والإضاءة</h2>
+                    {/* Fix: Use a unique translation key for the calculator step title to avoid conflicts. */}
+                    <h2 className="text-2xl font-bold mb-6 flex items-center"><UsersIcon />{t('calculator_step_title_2')}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
-                            <h3 className="text-lg font-semibold text-cyan-400">الأشخاص</h3>
-                            <InputGroup label="عدد الأشخاص" type="number" value={inputs.people.count} onChange={e => handleInputChange('people', 'count', parseInt(e.target.value, 10))} placeholder="5" />
-                            <SelectGroup label="مستوى النشاط" value={inputs.people.activity} onChange={e => handleInputChange('people', 'activity', e.target.value)} options={[{value: 'sitting', label: 'جلوس'}, {value: 'light_work', label: 'عمل خفيف'}, {value: 'heavy_work', label: 'عمل شاق'}]}/>
+                            <h3 className="text-lg font-semibold text-cyan-400">{t('people')}</h3>
+                            <InputGroup label={t('peopleCount')} type="number" value={inputs.people.count} onChange={e => handleInputChange('people', 'count', parseInt(e.target.value, 10))} placeholder="5" />
+                            <SelectGroup label={t('activityLevel')} value={inputs.people.activity} onChange={e => handleInputChange('people', 'activity', e.target.value)} options={[{value: 'sitting', label: t('activity_sitting')}, {value: 'light_work', label: t('activity_light_work')}, {value: 'heavy_work', label: t('activity_heavy_work')}]}/>
                         </div>
                          <div className="space-y-4">
-                             <h3 className="text-lg font-semibold text-cyan-400">الإضاءة</h3>
-                            <InputGroup label="قدرة الإضاءة الكلية (واط)" type="number" value={inputs.lighting.wattage} onChange={e => handleInputChange('lighting', 'wattage', parseFloat(e.target.value))} placeholder="300" />
+                             <h3 className="text-lg font-semibold text-cyan-400">{t('lighting')}</h3>
+                            <InputGroup label={t('totalLightingPower')} type="number" value={inputs.lighting.wattage} onChange={e => handleInputChange('lighting', 'wattage', parseFloat(e.target.value))} placeholder="300" />
                         </div>
                     </div>
                 </div>
             )}
              {currentStep === 3 && (
                  <div>
-                    <h2 className="text-2xl font-bold mb-6 flex items-center"><WindowIcon />الخطوة 3: النوافذ</h2>
+                    {/* Fix: Use a unique translation key for the calculator step title to avoid conflicts. */}
+                    <h2 className="text-2xl font-bold mb-6 flex items-center"><WindowIcon />{t('calculator_step_title_3')}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
-                            <InputGroup label="مساحة النوافذ (متر مربع)" type="number" value={inputs.windows.area} onChange={e => handleInputChange('windows', 'area', parseFloat(e.target.value))} placeholder="4" />
-                             <SelectGroup label="نوع الزجاج" value={inputs.windows.glassType} onChange={e => handleInputChange('windows', 'glassType', e.target.value)} options={[{value: 'single', label: 'مفرد'}, {value: 'double', label: 'مزدوج'}, {value: 'low_e', label: 'Low-E'}]}/>
+                            <InputGroup label={t('windowArea')} type="number" value={inputs.windows.area} onChange={e => handleInputChange('windows', 'area', parseFloat(e.target.value))} placeholder="4" />
+                             <SelectGroup label={t('glassType')} value={inputs.windows.glassType} onChange={e => handleInputChange('windows', 'glassType', e.target.value)} options={[{value: 'single', label: t('glass_single')}, {value: 'double', label: t('glass_double')}, {value: 'low_e', label: t('glass_low_e')}]}/>
                         </div>
                         <div className="space-y-4">
-                            <SelectGroup label="اتجاه النافذة" value={inputs.windows.direction} onChange={e => handleInputChange('windows', 'direction', e.target.value)} options={[{value: 'north', label: 'شمال'}, {value: 'south', label: 'جنوب'}, {value: 'east', label: 'شرق'}, {value: 'west', label: 'غرب'}]}/>
-                            <ToggleGroup label="وجود ظل/ستائر" enabled={inputs.windows.shading} onToggle={val => handleInputChange('windows', 'shading', val)} />
+                            <SelectGroup label={t('windowDirection')} value={inputs.windows.direction} onChange={e => handleInputChange('windows', 'direction', e.target.value)} options={[{value: 'north', label: t('direction_north')}, {value: 'south', label: t('direction_south')}, {value: 'east', label: t('direction_east')}, {value: 'west', label: t('direction_west')}]}/>
+                            <ToggleGroup label={t('shading')} enabled={inputs.windows.shading} onToggle={val => handleInputChange('windows', 'shading', val)} />
                         </div>
                     </div>
                 </div>
             )}
             {currentStep === 4 && (
                  <div>
-                    <h2 className="text-2xl font-bold mb-6 flex items-center"><PlugIcon />الخطوة 4: الأجهزة والعزل</h2>
+                    {/* Fix: Use a unique translation key for the calculator step title to avoid conflicts. */}
+                    <h2 className="text-2xl font-bold mb-6 flex items-center"><PlugIcon />{t('calculator_step_title_4')}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
-                            <h3 className="text-lg font-semibold text-cyan-400">الأجهزة</h3>
-                            <InputGroup label="قدرة الأجهزة الكلية (واط)" type="number" value={inputs.appliances.wattage} onChange={e => handleInputChange('appliances', 'wattage', parseFloat(e.target.value))} placeholder="800" />
+                            <h3 className="text-lg font-semibold text-cyan-400">{t('appliances')}</h3>
+                            <InputGroup label={t('totalAppliancePower')} type="number" value={inputs.appliances.wattage} onChange={e => handleInputChange('appliances', 'wattage', parseFloat(e.target.value))} placeholder="800" />
                         </div>
                         <div className="space-y-4">
-                             <h3 className="text-lg font-semibold text-cyan-400">العزل</h3>
-                            <InputGroup label="مساحة الجدران (متر مربع)" type="number" value={inputs.wallsAndCeiling.wallArea} onChange={e => handleInputChange('wallsAndCeiling', 'wallArea', parseFloat(e.target.value))} placeholder="66" />
-                            <InputGroup label="مساحة السقف (متر مربع)" type="number" value={inputs.wallsAndCeiling.ceilingArea} onChange={e => handleInputChange('wallsAndCeiling', 'ceilingArea', parseFloat(e.target.value))} placeholder="30" />
-                             <SelectGroup label="نوع العزل" value={inputs.wallsAndCeiling.insulationType} onChange={e => handleInputChange('wallsAndCeiling', 'insulationType', e.target.value)} options={[{value: 'none', label: 'بدون عزل'}, {value: 'standard', label: 'قياسي'}, {value: 'high', label: 'عالي'}]}/>
+                             <h3 className="text-lg font-semibold text-cyan-400">{t('insulation')}</h3>
+                            <InputGroup label={t('wallArea')} type="number" value={inputs.wallsAndCeiling.wallArea} onChange={e => handleInputChange('wallsAndCeiling', 'wallArea', parseFloat(e.target.value))} placeholder="66" />
+                            <InputGroup label={t('ceilingArea')} type="number" value={inputs.wallsAndCeiling.ceilingArea} onChange={e => handleInputChange('wallsAndCeiling', 'ceilingArea', parseFloat(e.target.value))} placeholder="30" />
+                             <SelectGroup label={t('insulationType')} value={inputs.wallsAndCeiling.insulationType} onChange={e => handleInputChange('wallsAndCeiling', 'insulationType', e.target.value)} options={[{value: 'none', label: t('insulation_none')}, {value: 'standard', label: t('insulation_standard')}, {value: 'high', label: t('insulation_high')}]}/>
                         </div>
                     </div>
                 </div>
             )}
             {currentStep === 5 && (
                  <div>
-                    <h2 className="text-2xl font-bold mb-6 flex items-center"><ThermometerIcon className="h-6 w-6 mr-2 text-cyan-400" />الخطوة 5: البيئة</h2>
+                    <h2 className="text-2xl font-bold mb-6 flex items-center"><ThermometerIcon className="h-6 w-6 ltr:mr-2 rtl:ml-2 text-cyan-400" />{t('step5_title')}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
-                            <InputGroup label="درجة الحرارة الخارجية (°مئوية)" type="number" value={inputs.environment.outdoorTemp} onChange={e => handleInputChange('environment', 'outdoorTemp', parseFloat(e.target.value))} placeholder="48" />
-                            <InputGroup label="درجة الحرارة الداخلية المطلوبة (°مئوية)" type="number" value={inputs.environment.indoorTemp} onChange={e => handleInputChange('environment', 'indoorTemp', parseFloat(e.target.value))} placeholder="24" />
+                            <InputGroup label={t('outdoorTemp')} type="number" value={inputs.environment.outdoorTemp} onChange={e => handleInputChange('environment', 'outdoorTemp', parseFloat(e.target.value))} placeholder="48" />
+                            <InputGroup label={t('indoorTemp')} type="number" value={inputs.environment.indoorTemp} onChange={e => handleInputChange('environment', 'indoorTemp', parseFloat(e.target.value))} placeholder="24" />
                         </div>
                          <div className="space-y-4">
-                            <SelectGroup label="نوع المبنى" value={inputs.environment.buildingType} onChange={e => handleInputChange('environment', 'buildingType', e.target.value)} options={[{value: 'residential', label: 'سكني'}, {value: 'commercial', label: 'تجاري'}, {value: 'industrial', label: 'صناعي'}]}/>
+                            <SelectGroup label={t('buildingType')} value={inputs.environment.buildingType} onChange={e => handleInputChange('environment', 'buildingType', e.target.value)} options={[{value: 'residential', label: t('building_residential')}, {value: 'commercial', label: t('building_commercial')}, {value: 'industrial', label: t('building_industrial')}]}/>
                         </div>
                     </div>
                 </div>
             )}
-            {currentStep === 6 && results && <ReportComponent inputs={inputs} results={results} handleCopy={handleCopyResults} handleDownload={handleDownloadReport} handlePrint={handlePrint} copyText={copyButtonText} />}
+            {currentStep === 6 && results && <ReportComponent inputs={inputs} results={results} handleCopy={handleCopyResults} handleDownload={handleDownloadReport} handlePrint={handlePrint} copyText={t(copyButtonText)} />}
 
             <div className="mt-8 pt-6 border-t border-gray-700 flex justify-between items-center">
-                <div>{currentStep > 1 && <button onClick={handleBack} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded transition-colors">السابق</button>}</div>
+                <div>{currentStep > 1 && <button onClick={handleBack} className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded transition-colors">{t('back')}</button>}</div>
                 <div>
-                    {currentStep < 5 && <button onClick={handleNext} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-6 rounded transition-colors">التالي</button>}
-                    {currentStep === 5 && <button onClick={handleCalculate} className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg text-lg shadow-lg">احسب الآن</button>}
-                    {currentStep === 6 && <button onClick={handleSaveClick} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition-colors">حفظ مؤقت</button>}
+                    {currentStep < 5 && <button onClick={handleNext} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-6 rounded transition-colors">{t('next')}</button>}
+                    {currentStep === 5 && <button onClick={handleCalculate} className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg text-lg shadow-lg">{t('calculateNow')}</button>}
+                    {currentStep === 6 && <button onClick={handleSaveClick} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition-colors">{t('temporarySave')}</button>}
                 </div>
             </div>
         </div>
@@ -392,7 +391,7 @@ const ToggleGroup: React.FC<{label: string, enabled: boolean, onToggle: (enabled
             className={`${enabled ? 'bg-cyan-600' : 'bg-gray-600'} relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 focus:ring-offset-gray-800`}
             onClick={() => onToggle(!enabled)}
         >
-            <span className={`${enabled ? 'translate-x-6' : 'translate-x-1'} inline-block w-4 h-4 transform bg-white rounded-full transition-transform`} />
+            <span className={`${enabled ? 'ltr:translate-x-6 rtl:translate-x-1' : 'translate-x-1'} inline-block w-4 h-4 transform bg-white rounded-full transition-transform`} />
         </button>
     </div>
 );
@@ -412,7 +411,9 @@ const EmaarLogo = () => (
 
 // Report Components
 const ReportComponent: React.FC<{inputs: InputState, results: ResultsState, handleCopy: () => void, handleDownload: () => void, handlePrint: () => void, copyText: string}> = ({inputs, results, handleCopy, handleDownload, handlePrint, copyText}) => {
+  const { language, t } = useLanguage();
   const getNum = (val: number | '') => val || 0;
+  const locale = language === 'ar' ? 'ar-EG' : 'en-US';
 
   return (
     <div id="print-section" className="print:bg-white print:text-black print:p-4">
@@ -420,74 +421,75 @@ const ReportComponent: React.FC<{inputs: InputState, results: ResultsState, hand
         <div className="hidden print:flex justify-between items-center mb-6 pb-4 border-b border-gray-400">
             <EmaarLogo />
             <div className="text-right">
-                <h1 className="text-xl font-bold">تقرير المشروع: {inputs.projectName}</h1>
-                <p className="text-sm text-gray-600">تاريخ الإنشاء: {new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                <h1 className="text-xl font-bold">{t('print_header_title', { projectName: inputs.projectName })}</h1>
+                <p className="text-sm text-gray-600">{t('print_header_date', { date: new Date().toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' }) })}</p>
             </div>
         </div>
 
       <div className="flex flex-wrap justify-between items-center mb-6 gap-4 print:hidden">
           <h2 className="text-3xl font-bold text-white print:text-black">
-              تقرير المشروع: <span className="text-cyan-400">{inputs.projectName}</span>
+              {t('report_title')} <span className="text-cyan-400">{inputs.projectName}</span>
           </h2>
           <div className="flex gap-2 flex-wrap print:hidden">
               <button onClick={handleCopy} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition-colors flex items-center"><ClipboardIcon />{copyText}</button>
-              <button onClick={handleDownload} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition-colors flex items-center"><DownloadIcon />تحميل</button>
-              <button onClick={handlePrint} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded transition-colors flex items-center"><PrintIcon />طباعة</button>
+              <button onClick={handleDownload} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition-colors flex items-center"><DownloadIcon />{t('download')}</button>
+              <button onClick={handlePrint} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded transition-colors flex items-center"><PrintIcon />{t('print')}</button>
           </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <SummaryCard title="الحمل الكلي" value={`${results.loads.totalLoadW.toLocaleString('ar-EG', {maximumFractionDigits: 0})} W`} subtitle={`${results.loads.totalLoadTons.toFixed(2)} طن تبريد`} />
-        <SummaryCard title="تدفق الهواء" value={`${results.airflow.cfm.toFixed(0)} CFM`} subtitle={`سرعة: ${results.airflow.velocityFpm} ft/min`} />
-        <SummaryCard title="قطر الدكت" value={`${results.ductSizing.roundDiameterIn.toFixed(1)}"`} subtitle="دائري" />
-        <SummaryCard title="صاج مطلوب" value={`${results.materials.sheetMetalM2.toFixed(2)} م²`} subtitle={`عازل: ${results.materials.insulationM2.toFixed(2)} م²`} />
+        <SummaryCard title={t('totalLoad')} value={`${results.loads.totalLoadW.toLocaleString(locale, {maximumFractionDigits: 0})} W`} subtitle={`${results.loads.totalLoadTons.toFixed(2)} ${t('refrigerationTon')}`} />
+        <SummaryCard title={t('airflow')} value={`${results.airflow.cfm.toFixed(0)} ${t('cfm')}`} subtitle={`${t('speed')}: ${results.airflow.velocityFpm} ft/min`} />
+        <SummaryCard title={t('ductDiameter')} value={`${results.ductSizing.roundDiameterIn.toFixed(1)}"`} subtitle={t('circular')} />
+        {/* Fix: Use a unique translation key for the insulation label to avoid conflicts. */}
+        <SummaryCard title={t('sheetMetalRequired')} value={`${results.materials.sheetMetalM2.toFixed(2)} m²`} subtitle={`${t('insulation_summary')}: ${results.materials.insulationM2.toFixed(2)} m²`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 bg-gray-900 print:bg-gray-100 p-4 rounded-lg">
           <div className="lg:col-span-3 space-y-6">
-              <DetailSection title="الأحمال الحرارية">
-                  <DetailRow label="حمل الأشخاص" value={results.loads.peopleW.toFixed(0)} unit="W" />
-                  <DetailRow label="حمل النوافذ" value={results.loads.windowsW.toFixed(0)} unit="W" />
-                  <DetailRow label="حمل الإضاءة" value={results.loads.lightingW.toFixed(0)} unit="W" />
-                  <DetailRow label="حمل الأجهزة" value={results.loads.appliancesW.toFixed(0)} unit="W" />
-                  <DetailRow label="حمل الجدران والسقف" value={results.loads.wallsAndCeilingW.toFixed(0)} unit="W" />
+              <DetailSection title={t('thermalLoads')}>
+                  <DetailRow label={t('peopleLoad')} value={results.loads.peopleW.toFixed(0)} unit="W" />
+                  <DetailRow label={t('windowsLoad')} value={results.loads.windowsW.toFixed(0)} unit="W" />
+                  <DetailRow label={t('lightingLoad')} value={results.loads.lightingW.toFixed(0)} unit="W" />
+                  <DetailRow label={t('appliancesLoad')} value={results.loads.appliancesW.toFixed(0)} unit="W" />
+                  <DetailRow label={t('wallsCeilingLoad')} value={results.loads.wallsCeilingW.toFixed(0)} unit="W" />
                   <hr className="border-gray-700 print:border-gray-400 my-2"/>
-                  <DetailRow label="الحمل الكلي (مع 20% أمان)" value={results.loads.totalLoadW.toFixed(0)} unit="W" isTotal={true}/>
-                  <DetailRow label="بوحدة BTU/hr" value={results.loads.totalLoadBtu.toFixed(0)} unit="BTU/hr" />
-                  <DetailRow label="بوحدة طن تبريد" value={results.loads.totalLoadTons.toFixed(2)} unit="طن" />
+                  <DetailRow label={t('totalLoadWithSafety')} value={results.loads.totalLoadW.toFixed(0)} unit="W" isTotal={true}/>
+                  <DetailRow label={t('inBtuHr')} value={results.loads.totalLoadBtu.toFixed(0)} unit="BTU/hr" />
+                  <DetailRow label={t('inTons')} value={results.loads.totalLoadTons.toFixed(2)} unit={t('tons')} />
               </DetailSection>
-              <DetailSection title="مقاسات الدكتات">
-                <DetailRow label="تدفق الهواء المطلوب" value={results.airflow.cfm.toFixed(0)} unit="CFM" />
-                <DetailRow label="سرعة الهواء" value={results.airflow.velocityFpm.toString()} unit="ft/min" />
-                <DetailRow label="مساحة الدكت" value={results.ductSizing.areaSqFt.toFixed(4)} unit="ft²" />
-                <DetailRow label="الدكت الدائري: القطر" value={results.ductSizing.roundDiameterIn.toFixed(1)} unit="بوصة" />
-                <DetailRow label="الدكت المستطيل: العرض" value={results.ductSizing.rectWidthIn.toFixed(1)} unit="بوصة" />
-                <DetailRow label="الدكت المستطيل: الارتفاع" value={results.ductSizing.rectHeightIn.toFixed(1)} unit="بوصة" />
+              <DetailSection title={t('ductSizing')}>
+                <DetailRow label={t('requiredAirflow')} value={results.airflow.cfm.toFixed(0)} unit={t('cfm')} />
+                <DetailRow label={t('airVelocity')} value={results.airflow.velocityFpm.toString()} unit="ft/min" />
+                <DetailRow label={t('ductArea')} value={results.ductSizing.areaSqFt.toFixed(4)} unit="ft²" />
+                <DetailRow label={t('circularDuctDiameter')} value={results.ductSizing.roundDiameterIn.toFixed(1)} unit={t('inch')} />
+                <DetailRow label={t('rectangularDuctWidth')} value={results.ductSizing.rectWidthIn.toFixed(1)} unit={t('inch')} />
+                <DetailRow label={t('rectangularDuctHeight')} value={results.ductSizing.rectHeightIn.toFixed(1)} unit={t('inch')} />
               </DetailSection>
-              <DetailSection title="كميات المواد (لـ 10 متر)">
-                <DetailRow label="الصاج" value={results.materials.sheetMetalM2.toFixed(2)} unit="متر مربع" />
-                <DetailRow label="العازل" value={results.materials.insulationM2.toFixed(2)} unit="متر مربع" />
-                <DetailRow label="الفلنجات" value={results.materials.flanges.toString()} unit="قطعة" />
-                <DetailRow label="المسامير" value={results.materials.screws.toString()} unit="مسمار" />
+              <DetailSection title={t('materialQuantities')}>
+                <DetailRow label={t('sheetMetal')} value={results.materials.sheetMetalM2.toFixed(2)} unit="m²" />
+                <DetailRow label={t('insulationMaterial')} value={results.materials.insulationM2.toFixed(2)} unit="m²" />
+                <DetailRow label={t('flanges')} value={results.materials.flanges.toString()} unit="" />
+                <DetailRow label={t('screws')} value={results.materials.screws.toString()} unit="" />
               </DetailSection>
           </div>
           <div className="lg:col-span-2 space-y-6">
-              <DetailSection title="المدخلات المستخدمة">
-                <DetailRow label="أبعاد الغرفة" value={`${getNum(inputs.room.length)} × ${getNum(inputs.room.width)} × ${getNum(inputs.room.height)}`} unit="م" />
-                <DetailRow label="عدد الأشخاص" value={getNum(inputs.people.count).toString()} />
-                <DetailRow label="مساحة النوافذ" value={getNum(inputs.windows.area).toString()} unit="م²" />
-                <DetailRow label="قدرة الإضاءة" value={getNum(inputs.lighting.wattage).toString()} unit="واط" />
-                <DetailRow label="قدرة الأجهزة" value={getNum(inputs.appliances.wattage).toString()} unit="واط" />
-                <DetailRow label="درجة الحرارة الخارجية" value={getNum(inputs.environment.outdoorTemp).toString()} unit="°س" />
-                <DetailRow label="درجة الحرارة الداخلية" value={getNum(inputs.environment.indoorTemp).toString()} unit="°س" />
+              <DetailSection title={t('inputsUsed')}>
+                <DetailRow label={t('roomDimensions')} value={`${getNum(inputs.room.length)} × ${getNum(inputs.room.width)} × ${getNum(inputs.room.height)}`} unit="m" />
+                <DetailRow label={t('peopleCount')} value={getNum(inputs.people.count).toString()} />
+                <DetailRow label={t('windowAreaLabel')} value={getNum(inputs.windows.area).toString()} unit="m²" />
+                <DetailRow label={t('lightingPower')} value={getNum(inputs.lighting.wattage).toString()} unit="W" />
+                <DetailRow label={t('appliancePower')} value={getNum(inputs.appliances.wattage).toString()} unit="W" />
+                <DetailRow label={t('outdoorTemp')} value={getNum(inputs.environment.outdoorTemp).toString()} unit="°C" />
+                <DetailRow label={t('indoorTemp')} value={getNum(inputs.environment.indoorTemp).toString()} unit="°C" />
               </DetailSection>
-              <DetailSection title="ملاحظات هامة">
+              <DetailSection title={t('importantNotes')}>
                 <ul className="space-y-2 text-gray-300 print:text-gray-700 text-sm">
-                  <li>✓ تم إضافة معامل أمان 20% للحمل الكلي.</li>
-                  <li>✓ الحسابات تعتمد على المعادلات القياسية لحساب أحمال التكييف.</li>
-                  <li>✓ كميات المواد محسوبة لطول 10 متر من الدكت.</li>
-                  <li>✓ يُنصح بمراجعة مهندس تكييف معتمد قبل التنفيذ.</li>
-                  <li>✓ قد تختلف الأحمال الفعلية حسب ظروف الموقع الحقيقية.</li>
+                  <li>{t('note1')}</li>
+                  <li>{t('note2')}</li>
+                  <li>{t('note3')}</li>
+                  <li>{t('note4')}</li>
+                  <li>{t('note5')}</li>
                 </ul>
               </DetailSection>
           </div>
@@ -495,8 +497,8 @@ const ReportComponent: React.FC<{inputs: InputState, results: ResultsState, hand
 
        {/* --- PRINT FOOTER --- */}
        <div className="hidden print:block text-center mt-8 pt-4 border-t border-gray-400 text-xs text-gray-500">
-            <p>تم إنشاء هذا التقرير بواسطة Emaar HVAC Calculator.</p>
-            <p>يمكن تفعيل أرقام الصفحات من خلال إعدادات الطباعة في متصفحك (خيار الرؤوس والتذييلات).</p>
+            <p>{t('print_footer_text1')}</p>
+            <p>{t('print_footer_text2')}</p>
         </div>
     </div>
   );

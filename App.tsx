@@ -1,18 +1,17 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import HomePage from './HomePage';
 import CalculatorPage from './CalculatorPage';
 import ProjectsPage from './ProjectsPage';
 import type { Project, InputState, ResultsState } from './types';
+import { LanguageProvider, useLanguage } from './LanguageContext';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [page, setPage] = useState<'home' | 'calculator' | 'projects'>('home');
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  // Fix: Cannot find namespace 'NodeJS'. In a browser environment, setTimeout returns a number, not a NodeJS.Timeout object. Using ReturnType<typeof setTimeout> is a safe, environment-agnostic way to get the correct type.
   const projectTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const { t } = useLanguage();
 
-  // Cleanup timeouts on component unmount
   useEffect(() => {
     const timeouts = projectTimeouts.current;
     return () => {
@@ -22,19 +21,17 @@ const App: React.FC = () => {
 
   const handleNavigate = (targetPage: 'home' | 'calculator' | 'projects') => {
     if (targetPage === 'calculator') {
-        setActiveProject(null); // Start a new calculation
+        setActiveProject(null);
     }
     setPage(targetPage);
   };
 
   const handleDeleteProject = (projectId: string) => {
-    // Clear any scheduled deletion timeout
     const timeoutId = projectTimeouts.current.get(projectId);
     if (timeoutId) {
       clearTimeout(timeoutId);
       projectTimeouts.current.delete(projectId);
     }
-    // Remove project from state
     setProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
   };
   
@@ -47,18 +44,16 @@ const App: React.FC = () => {
         createdAt: new Date().toISOString()
     };
     
-    // Add project to state
     setProjects(prevProjects => [...prevProjects, newProject]);
 
-    // Schedule project deletion after 30 minutes
     const thirtyMinutes = 30 * 60 * 1000;
     const timeoutId = setTimeout(() => {
       handleDeleteProject(newProject.id);
     }, thirtyMinutes);
     projectTimeouts.current.set(newProject.id, timeoutId);
     
-    alert(`تم حفظ المشروع "${inputs.projectName}" مؤقتاً لمدة 30 دقيقة.`);
-    setPage('projects'); // Navigate to projects page after saving
+    alert(t('projectSaved', { projectName: inputs.projectName }));
+    setPage('projects');
   };
   
   const handleLoadProject = (projectId: string) => {
@@ -70,14 +65,14 @@ const App: React.FC = () => {
   };
 
   const manualDeleteProject = (projectId: string) => {
-     if (confirm('هل أنت متأكد من رغبتك في حذف هذا المشروع؟')) {
+     if (confirm(t('deleteProjectConfirm'))) {
        handleDeleteProject(projectId);
     }
   };
   
   const Footer = () => (
     <footer className="bg-gray-800 text-center p-4 text-gray-400 mt-auto">
-      <p>© 2025 Emaar HVAC. جميع الحقوق محفوظة.</p>
+      <p>{t('footerCopyright')}</p>
     </footer>
   );
 
@@ -101,5 +96,11 @@ const App: React.FC = () => {
     </main>
   );
 };
+
+const App: React.FC = () => (
+  <LanguageProvider>
+    <AppContent />
+  </LanguageProvider>
+);
 
 export default App;

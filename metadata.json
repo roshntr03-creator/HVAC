@@ -1,5 +1,5 @@
 {
-  "name": "Emaar HVAC - حساب الأحمال الحرارية",
-  "description": "تطبيق ويب لحساب الأحمال الحرارية وتصميم أنظمة التكييف بدقة وسهولة. حساب الأحمال من الأشخاص، النوافذ، الإضاءة، والأجهزة، مع تحديد مقاسات الدكتات وكميات المواد.",
+  "name": "Emaar HVAC Calculator",
+  "description": "A web application for accurately calculating thermal loads and designing air conditioning systems. Supports both Arabic and English.",
   "requestFramePermissions": []
 }
