@@ -398,13 +398,34 @@ const ToggleGroup: React.FC<{label: string, enabled: boolean, onToggle: (enabled
 );
 
 
+// Logo for printing
+const EmaarLogo = () => (
+    <div className="flex items-center gap-2" dir="ltr">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-cyan-600">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <span className="text-xl font-bold text-gray-800">Emaar<span className="font-normal text-gray-500">HVAC</span></span>
+    </div>
+);
+
 // Report Components
 const ReportComponent: React.FC<{inputs: InputState, results: ResultsState, handleCopy: () => void, handleDownload: () => void, handlePrint: () => void, copyText: string}> = ({inputs, results, handleCopy, handleDownload, handlePrint, copyText}) => {
   const getNum = (val: number | '') => val || 0;
 
   return (
     <div id="print-section" className="print:bg-white print:text-black print:p-4">
-      <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
+        {/* --- PRINT HEADER --- */}
+        <div className="hidden print:flex justify-between items-center mb-6 pb-4 border-b border-gray-400">
+            <EmaarLogo />
+            <div className="text-right">
+                <h1 className="text-xl font-bold">تقرير المشروع: {inputs.projectName}</h1>
+                <p className="text-sm text-gray-600">تاريخ الإنشاء: {new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            </div>
+        </div>
+
+      <div className="flex flex-wrap justify-between items-center mb-6 gap-4 print:hidden">
           <h2 className="text-3xl font-bold text-white print:text-black">
               تقرير المشروع: <span className="text-cyan-400">{inputs.projectName}</span>
           </h2>
@@ -471,6 +492,12 @@ const ReportComponent: React.FC<{inputs: InputState, results: ResultsState, hand
               </DetailSection>
           </div>
       </div>
+
+       {/* --- PRINT FOOTER --- */}
+       <div className="hidden print:block text-center mt-8 pt-4 border-t border-gray-400 text-xs text-gray-500">
+            <p>تم إنشاء هذا التقرير بواسطة Emaar HVAC Calculator.</p>
+            <p>يمكن تفعيل أرقام الصفحات من خلال إعدادات الطباعة في متصفحك (خيار الرؤوس والتذييلات).</p>
+        </div>
     </div>
   );
 };
