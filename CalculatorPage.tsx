@@ -452,7 +452,8 @@ const ReportComponent: React.FC<{inputs: InputState, results: ResultsState, hand
                   <DetailRow label={t('windowsLoad')} value={results.loads.windowsW.toFixed(0)} unit="W" />
                   <DetailRow label={t('lightingLoad')} value={results.loads.lightingW.toFixed(0)} unit="W" />
                   <DetailRow label={t('appliancesLoad')} value={results.loads.appliancesW.toFixed(0)} unit="W" />
-                  <DetailRow label={t('wallsCeilingLoad')} value={results.loads.wallsCeilingW.toFixed(0)} unit="W" />
+                  {/* FIX: Corrected typo from wallsCeilingW to wallsAndCeilingW */}
+                  <DetailRow label={t('wallsCeilingLoad')} value={results.loads.wallsAndCeilingW.toFixed(0)} unit="W" />
                   <hr className="border-gray-700 print:border-gray-400 my-2"/>
                   <DetailRow label={t('totalLoadWithSafety')} value={results.loads.totalLoadW.toFixed(0)} unit="W" isTotal={true}/>
                   <DetailRow label={t('inBtuHr')} value={results.loads.totalLoadBtu.toFixed(0)} unit="BTU/hr" />

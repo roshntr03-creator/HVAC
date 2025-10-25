@@ -25,6 +25,10 @@ const ProjectCard: React.FC<{ project: Project; onDelete: () => void; onLoad: ()
     const { name, createdAt, results } = project;
     const locale = language === 'ar' ? 'ar-EG' : 'en-US';
     
+    const tons = results?.loads?.totalLoadTons;
+    const cfm = results?.airflow?.cfm;
+    const diameter = results?.ductSizing?.roundDiameterIn;
+
     return (
         <div className="bg-gray-800 rounded-lg shadow-lg p-6 flex flex-col justify-between hover:shadow-cyan-500/20 hover:-translate-y-2 transition-all duration-300">
             <div>
@@ -35,15 +39,15 @@ const ProjectCard: React.FC<{ project: Project; onDelete: () => void; onLoad: ()
                 <div className="space-y-3 text-gray-300">
                     <div className="flex items-center">
                         <ThermometerIcon className="h-5 w-5 text-cyan-400 ltr:mr-2 rtl:ml-2" />
-                        <span>{t('thermalLoad')}: <strong>{results.loads.totalLoadTons.toFixed(2)}</strong> {t('tons')}</span>
+                        <span>{t('thermalLoad')}: <strong>{typeof tons === 'number' ? tons.toFixed(2) : 'N/A'}</strong> {t('tons')}</span>
                     </div>
                     <div className="flex items-center">
                         <WindIcon className="h-5 w-5 text-cyan-400 ltr:mr-2 rtl:ml-2" />
-                        <span>{t('airflow')}: <strong>{results.airflow.cfm.toFixed(0)}</strong> {t('cfm')}</span>
+                        <span>{t('airflow')}: <strong>{typeof cfm === 'number' ? cfm.toFixed(0) : 'N/A'}</strong> {t('cfm')}</span>
                     </div>
                     <div className="flex items-center">
                         <RulerIcon className="h-5 w-5 text-cyan-400 ltr:mr-2 rtl:ml-2" />
-                        <span>{t('ductDiameter')}: <strong>{results.ductSizing.roundDiameterIn.toFixed(1)}</strong> {t('inch')}</span>
+                        <span>{t('ductDiameter')}: <strong>{typeof diameter === 'number' ? diameter.toFixed(1) : 'N/A'}</strong> {t('inch')}</span>
                     </div>
                 </div>
             </div>
