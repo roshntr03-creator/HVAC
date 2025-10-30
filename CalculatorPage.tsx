@@ -6,7 +6,13 @@ import {
   LS_TO_CFM, STANDARD_ATM_PASCALS, 
   SPECIFIC_HEAT_AIR_J_KG_K, LATENT_HEAT_VAPORIZATION_J_KG, AIR_DENSITY_KG_M3
 } from './constants';
-import { BuildingIcon, UsersIcon, LightbulbIcon, DocumentReportIcon, FolderIcon, PrintIcon, CheckCircleIcon, ThermometerIcon } from './Icons';
+import { BuildingIcon, UsersIcon, LightbulbIcon, DocumentReportIcon, FolderIcon, PrintIcon, CheckCircleIcon, ThermometerIcon, DownloadIcon } from './Icons';
+
+declare global {
+  interface Window {
+    html2pdf: any;
+  }
+}
 
 // --- Psychrometric Helper Functions ---
 const getSatVaporPressure = (T_db: number): number => {
@@ -410,6 +416,31 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
 
   const handlePrint = () => { window.print(); };
 
+  const handleDownloadPdf = () => {
+    const element = document.getElementById('print-section');
+    if (!element) {
+        console.error("Report element not found for PDF generation.");
+        return;
+    }
+
+    const filename = (inputs.projectName || 'emaar_hvac_report') + '.pdf';
+
+    const opt = {
+        margin: 0.5,
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+    };
+
+    if (window.html2pdf) {
+        window.html2pdf().from(element).set(opt).save();
+    } else {
+        console.error('html2pdf.js library not loaded.');
+        alert('PDF generation library is not available. Please try again.');
+    }
+  };
+
   const handleNext = () => { if (currentStep < 5) setCurrentStep(s => s + 1); };
   const handleBack = () => { if (currentStep > 1) setCurrentStep(s => s - 1); };
   const handleCalculate = () => { calculateAll(); setCurrentStep(5); };
@@ -509,8 +540,9 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
             )}
             {currentStep === 5 && results && (
                 <div>
-                    <div className="flex justify-end mb-4 print:hidden">
+                    <div className="flex justify-end mb-4 print:hidden gap-2">
                         <button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex items-center"><PrintIcon />{t('print')}</button>
+                        <button onClick={handleDownloadPdf} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded flex items-center"><DownloadIcon />{t('downloadPdf')}</button>
                     </div>
                     <FullReport results={results} inputs={inputs}/>
                 </div>

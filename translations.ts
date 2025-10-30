@@ -109,6 +109,7 @@ export const translations = {
     report_title_psychro: "System Psychrometrics for {projectName}",
     report_title_psychro_analysis: "Psychrometric Analysis for {projectName}",
     print: "Print",
+    downloadPdf: "Download PDF",
 
     airSystemInfo: "Air System Information",
     airSystemName: "Air System Name",
@@ -362,6 +363,7 @@ export const translations = {
     report_title_psychro: "الخصائص السيكرومترية للنظام لـ {projectName}",
     report_title_psychro_analysis: "التحليل السيكومتري لـ {projectName}",
     print: "طباعة",
+    downloadPdf: "تحميل PDF",
     
     airSystemInfo: "معلومات نظام الهواء",
     airSystemName: "اسم نظام الهواء",
