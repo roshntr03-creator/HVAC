@@ -1,3 +1,5 @@
+
+
 import React from 'react';
 import type { Project } from './types';
 import { useLanguage } from './LanguageContext';
@@ -25,10 +27,10 @@ const ProjectCard: React.FC<{ project: Project; onDelete: () => void; onLoad: ()
     const { name, createdAt, results } = project;
     const locale = language === 'ar' ? 'ar-EG' : 'en-US';
     
-    const tons = results?.loads?.totalLoadTons;
-    const cfm = results?.airflow?.cfm;
-    const diameter = results?.ductSizing?.roundDiameterIn;
-
+    // Fix: Access results from the correct 'legacy' property in the results object.
+    const tons = results?.legacy?.totalLoadTons;
+    const cfm = results?.legacy?.airflowCFM;
+    
     return (
         <div className="bg-gray-800 rounded-lg shadow-lg p-6 flex flex-col justify-between hover:shadow-cyan-500/20 hover:-translate-y-2 transition-all duration-300">
             <div>
@@ -44,10 +46,6 @@ const ProjectCard: React.FC<{ project: Project; onDelete: () => void; onLoad: ()
                     <div className="flex items-center">
                         <WindIcon className="h-5 w-5 text-cyan-400 ltr:mr-2 rtl:ml-2" />
                         <span>{t('airflow')}: <strong>{typeof cfm === 'number' ? cfm.toFixed(0) : 'N/A'}</strong> {t('cfm')}</span>
-                    </div>
-                    <div className="flex items-center">
-                        <RulerIcon className="h-5 w-5 text-cyan-400 ltr:mr-2 rtl:ml-2" />
-                        <span>{t('ductDiameter')}: <strong>{typeof diameter === 'number' ? diameter.toFixed(1) : 'N/A'}</strong> {t('inch')}</span>
                     </div>
                 </div>
             </div>
@@ -88,7 +86,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ projects, onNavigate, onDel
             
             <div className="bg-yellow-900/50 border border-yellow-700 text-yellow-300 px-4 py-3 rounded-lg relative mb-6" role="alert">
                 <strong className="font-bold">{t('importantNote')} </strong>
-                <span className="block sm:inline">{t('note_temp_save')}</span>
+                <span className="block sm:inline">{t('note_local_save')}</span>
             </div>
 
             {sortedProjects.length > 0 ? (

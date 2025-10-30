@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import HomePage from './HomePage';
 import CalculatorPage from './CalculatorPage';
 import ProjectsPage from './ProjectsPage';
@@ -9,15 +9,31 @@ const AppContent: React.FC = () => {
   const [page, setPage] = useState<'home' | 'calculator' | 'projects'>('home');
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const projectTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const { t } = useLanguage();
 
+  // Load projects from localStorage on initial render
   useEffect(() => {
-    const timeouts = projectTimeouts.current;
-    return () => {
-      timeouts.forEach(timeoutId => clearTimeout(timeoutId));
-    };
+    try {
+      const savedProjects = localStorage.getItem('emaar_hvac_projects');
+      if (savedProjects) {
+        setProjects(JSON.parse(savedProjects));
+      }
+    } catch (error) {
+      console.error("Failed to load projects from localStorage", error);
+      // If parsing fails, it might be corrupted data, so we clear it.
+      localStorage.removeItem('emaar_hvac_projects');
+    }
   }, []);
+
+  // Save projects to localStorage whenever the projects state changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('emaar_hvac_projects', JSON.stringify(projects));
+    } catch (error) {
+      console.error("Failed to save projects to localStorage", error);
+    }
+  }, [projects]);
+
 
   const handleNavigate = (targetPage: 'home' | 'calculator' | 'projects') => {
     if (targetPage === 'calculator') {
@@ -27,11 +43,6 @@ const AppContent: React.FC = () => {
   };
 
   const handleDeleteProject = (projectId: string) => {
-    const timeoutId = projectTimeouts.current.get(projectId);
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      projectTimeouts.current.delete(projectId);
-    }
     setProjects(prevProjects => prevProjects.filter(p => p.id !== projectId));
   };
   
@@ -45,14 +56,8 @@ const AppContent: React.FC = () => {
     };
     
     setProjects(prevProjects => [...prevProjects, newProject]);
-
-    const thirtyMinutes = 30 * 60 * 1000;
-    const timeoutId = setTimeout(() => {
-      handleDeleteProject(newProject.id);
-    }, thirtyMinutes);
-    projectTimeouts.current.set(newProject.id, timeoutId);
     
-    alert(t('projectSaved', { projectName: inputs.projectName }));
+    alert(t('projectSavedLocally', { projectName: inputs.projectName }));
     setPage('projects');
   };
   

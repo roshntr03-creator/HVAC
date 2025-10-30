@@ -1,73 +1,210 @@
 export interface InputState {
   projectName: string;
-  // Step 1
-  room: {
-    length: number | ''; // meters
-    width: number | ''; // meters
-    height: number | ''; // meters
+  preparedBy: string;
+  location: string;
+  
+  // Project & System Details
+  system: {
+    equipmentClass: 'pkg_roof' | 'split_dx' | 'chiller_fcu';
+    airSystemType: 'szcav' | 'vav';
+    fanStaticPa: number | '';
+    fanEfficiency: number | '';
+    safetyFactor: number | '';
+    designAirflowLs: number | '';
   };
-  // Step 2
+
+  // Zone & Space Data
+  zone: {
+    floorArea: number | ''; // m²
+    ceilingHeight: number | ''; // m
+  };
+
+  // Internal Loads
   people: {
     count: number | '';
-    activity: 'sitting' | 'light_work' | 'heavy_work';
+    activity: 'sitting' | 'light_work' | 'heavy_work' | 'custom_mosque';
   };
   lighting: {
-    wattage: number | '';
+    loadW: number | ''; // Watts
   };
-  // Step 3
-  windows: {
-    area: number | ''; // m²
-    glassType: 'single' | 'double' | 'low_e';
-    direction: 'north' | 'south' | 'east' | 'west';
-    shading: boolean;
+  equipment: {
+    loadW: number | ''; // Watts
   };
-  // Step 4
-  appliances: {
-    wattage: number | '';
-  };
-  wallsAndCeiling: {
+
+  // Envelope Loads
+  envelope: {
+    windowArea: number | ''; // m²
+    windowUValue: number | ''; // W/m²K
     wallArea: number | ''; // m²
-    ceilingArea: number | ''; // m²
-    insulationType: 'none' | 'standard' | 'high';
+    wallUValue: number | ''; // W/m²K
+    roofArea: number | ''; // m²
+    roofUValue: number | ''; // W/m²K
+    solarLoadW: number | ''; // Watts (from windows)
   };
-  // Step 5
-  environment: {
-    outdoorTemp: number | ''; // C
-    indoorTemp: number | ''; // C
-    buildingType: 'residential' | 'commercial' | 'industrial';
+
+  // Ventilation & Infiltration
+  ventilation: {
+    lsPerPerson: number | ''; // L/s per person
+    infiltrationACH: number | ''; // Air Changes per Hour
+  };
+
+  // Design Conditions
+  conditions: {
+    outdoorDB: number | ''; // Dry-Bulb Temp °C
+    outdoorWB: number | ''; // Wet-Bulb Temp °C
+    indoorDB: number | ''; // Dry-Bulb Temp °C
+    indoorRH: number | ''; // Relative Humidity %
+    designSupplyTemp: number | ''; // Supply Air Temp °C
+    winterOutdoorDB: number | '';
   };
 }
+
+export interface PsychrometricPoint {
+    name: string;
+    dryBulb: number;      // °C
+    humidityRatio: number;// kg/kg
+}
+
+export interface PsychrometricTableRow {
+    component: string;
+    location: string;
+    dryBulbC: number;
+    specificHumidity: number;
+    airflowLs: number;
+    co2LevelPpm: number;
+    sensibleHeatW: number;
+    latentHeatW: number;
+}
+export interface PsychrometricZoneData {
+    sensibleLoadW: number;
+    thermostatMode: string;
+    zoneConditionW: number;
+    zoneTempC: number;
+    airflowLs: number;
+    co2LevelPpm: number;
+    terminalHeatingCoilW: number;
+    zoneHeatingUnitW: number;
+}
+
 
 export interface ResultsState {
-  loads: {
-    peopleW: number;
-    windowsW: number;
-    lightingW: number;
-    appliancesW: number;
-    wallsAndCeilingW: number;
-    subTotalW: number;
-    totalLoadW: number;
-    totalLoadBtu: number;
-    totalLoadTons: number;
+  projectInfo: {
+    projectName: string;
+    preparedBy: string;
+    location: string;
+    floorArea: number;
+    date: string;
+    time: string;
+    altitude: number;
   };
-  airflow: {
-    cfm: number;
-    velocityFpm: number;
+  
+  airSystemSizingSummary: {
+    airSystemName: string;
+    equipmentClass: string;
+    airSystemType: string;
+    numberOfZones: number;
+    location: string;
+    calculationMonths: string;
+    sizingData: string;
+    zoneLssSizing: string;
+    spaceLssSizing: string;
+    cooling: {
+      totalCoilLoadKW: number;
+      sensibleCoilLoadKW: number;
+      coilAirflowLs: number;
+      maxBlockLs: number;
+      sumOfPeakLs: number;
+      sensibleHeatRatio: number;
+      sqmPerKw: number;
+      wattsPerSqm: number;
+      loadOccursAt: string;
+      outdoorAirDB: number;
+      outdoorAirWB: number;
+      enteringDB: number;
+      enteringWB: number;
+      leavingDB: number;
+      leavingWB: number;
+      coilADP: number;
+      bypassFactor: number;
+      resultingRH: number;
+      designSupplyTemp: number;
+    };
+    heating: {
+      maxCoilLoadKW: number;
+      coilLsAtDesHtg: number;
+      maxCoilLs: number;
+      loadOccursAt: string;
+      wattsPerSqm: number;
+      enteringDB: number;
+      leavingDB: number;
+    };
+    supplyFan: {
+      actualMaxLs: number;
+      standardLs: number; // Corrected for density
+      actualMaxLssqm: number;
+      fanMotorBHP: number;
+      fanMotorKW: number;
+      fanStaticPa: number;
+    };
+    ventilation: {
+      designAirflowLs: number;
+      lsPerSqm: number;
+      lsPerPerson: number;
+    };
   };
-  ductSizing: {
-    areaSqFt: number;
-    roundDiameterIn: number;
-    rectWidthIn: number;
-    rectHeightIn: number;
-  };
-  materials: { // for 10m length
-    sheetMetalM2: number;
-    insulationM2: number;
-    flanges: number;
-    screws: number;
-  };
-}
 
+  zoneSizingSummary: {
+    zoneName: string;
+    coolingSensibleKW: number;
+    designAirflowLs: number;
+    minAirflowLs: number;
+    timeOfPeakLoad: string;
+    heatingLoadKW: number;
+    floorArea: number;
+    lsPerSqm: number;
+  };
+
+  spaceLoadsAndAirflows: {
+    spaceName: string;
+    coolingSensibleKW: number;
+    timeOfLoad: string;
+    airflowLs: number;
+    heatingLoadKW: number;
+    floorArea: number;
+    spaceLsPerSqm: number;
+  };
+
+  designLoadSummary: {
+    cooling: {
+        oa_db_wb: string;
+        details: { [key: string]: { details: string; sensibleW: number; latentW: number; }};
+    },
+    heating: {
+        oa_db_wb: string;
+        details: { [key: string]: { details: string; sensibleW: number; latentW: number; }};
+    },
+    totalConditioning: {
+        sensibleW: number;
+        latentW: number;
+        sensibleW_heating: number;
+        latentW_heating: number;
+    }
+  };
+
+  psychrometrics: {
+    coolingDay: string;
+    cooling_points: PsychrometricPoint[];
+    cooling_table: PsychrometricTableRow[];
+    cooling_zone_data: PsychrometricZoneData;
+    heating_table: PsychrometricTableRow[];
+    heating_zone_data: PsychrometricZoneData;
+  };
+  
+  legacy: {
+    totalLoadTons: number;
+    airflowCFM: number;
+  }
+}
 
 export interface Project {
   id: string;
