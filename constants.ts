@@ -53,8 +53,8 @@ export const M3_S_TO_CFM = 2118.88;
 
 // --- Psychrometric & Engineering Constants ---
 export const STANDARD_ATM_PASCALS = 101325;
-// Adjusted air density for hot climates to better match HAP calculations. Was 1.204.
-export const AIR_DENSITY_KG_M3 = 1.10; // at sea level, ~50°C
+// Restored standard air density. The previous value of 1.10 was too low and caused calculation errors.
+export const AIR_DENSITY_KG_M3 = 1.204; // at sea level, ~20°C
 export const SPECIFIC_HEAT_AIR_J_KG_K = 1006; // Specific heat of dry air J/(kg·K)
 export const SPECIFIC_HEAT_WATER_VAPOR_J_KG_K = 1860; // Specific heat of water vapor J/(kg·K)
 export const LATENT_HEAT_VAPORIZATION_J_KG = 2501000; // J/kg of water at 0°C

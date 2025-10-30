@@ -94,6 +94,7 @@ export const translations = {
     infiltrationACH: "Infiltration (ACH)",
     safetyFactor: "Safety Factor (%)",
 
+    loadExampleData: "Load PANDA464 Example Data",
     next: "Next",
     back: "Back",
     calculateNow: "Calculate Now",
@@ -347,7 +348,8 @@ export const translations = {
     lsPerPerson: "التهوية (لتر/ثانية لكل شخص)",
     infiltrationACH: "التسريب (معدل تغير الهواء/ساعة)",
     safetyFactor: "معامل الأمان (%)",
-
+    
+    loadExampleData: "تحميل بيانات مثال PANDA464",
     next: "التالي",
     back: "السابق",
     calculateNow: "احسب الآن",

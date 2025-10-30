@@ -42,6 +42,33 @@ const getHumidityRatioFromWB = (T_db: number, T_wb: number): number => {
     return Math.max(0, numerator/denominator);
 };
 
+const getWBFromDBandW = (T_db: number, W: number): number => {
+    // Iteratively find the Wet-Bulb temperature that corresponds to a given Dry-Bulb and Humidity Ratio
+    if (W < 0) return T_db; // Cannot have negative humidity
+    let iterations = 0;
+    const maxIterations = 100; // Prevent infinite loops
+
+    // Use a bisection method for better performance and stability
+    let high = T_db;
+    let low = -50; // A reasonable lower bound for T_wb
+    let T_wb = (high + low) / 2;
+
+    while (iterations < maxIterations) {
+        const W_calc = getHumidityRatioFromWB(T_db, T_wb);
+        if (Math.abs(W_calc - W) < 1e-6) {
+            return T_wb; // Close enough
+        }
+        if (W_calc > W) {
+            high = T_wb;
+        } else {
+            low = T_wb;
+        }
+        T_wb = (high + low) / 2;
+        iterations++;
+    }
+    return T_wb; // Return best guess after max iterations
+};
+
 
 const getEnthalpy = (T_db: number, W: number): number => {
     return (1.006 * T_db + W * (2501 + 1.86 * T_db)); // in kJ/kg
@@ -70,7 +97,7 @@ const placeholderInputs: InputState = {
   ventilation: { lsPerPerson: 4.83, infiltrationACH: 0 },
   conditions: {
     outdoorDB: 43.9, outdoorWB: 21.7,
-    indoorDB: 24.7, indoorRH: 64,
+    indoorDB: 24.4, indoorRH: 64,
     designSupplyTemp: 14.4, // This will be calculated, but placeholder reflects target
     winterOutdoorDB: 7.2,
   },
@@ -219,50 +246,51 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
     if (supplyAirflowLs === 0) { alert("Design Airflow cannot be zero."); return null; }
     const supplyMassFlow = (supplyAirflowLs / 1000) * AIR_DENSITY_KG_M3;
 
-    // --- FAN CALCULATIONS (CORRECTED) ---
+    // --- FAN CALCULATIONS ---
     const supplyAirflowM3s = supplyAirflowLs / 1000;
     const fanEfficiencyDecimal = i.system.fanEfficiency / 100;
     const fanPowerW = (fanEfficiencyDecimal > 0 && i.system.fanStaticPa > 0) ? (supplyAirflowM3s * i.system.fanStaticPa) / fanEfficiencyDecimal : 0;
     const fanPowerKW = fanPowerW / 1000;
     const fanPowerBHP = fanPowerKW * 1.341;
-    const fanHeatDeltaT = (supplyMassFlow > 0) ? fanPowerW / (supplyMassFlow * SPECIFIC_HEAT_AIR_J_KG_K) : 0;
     
-    // --- PSYCHROMETRIC CALCULATIONS (CORRECTED) ---
-    // Calculate the state of the air required to enter the zone
-    const T_supply_entering_zone = i.conditions.indoorDB - (totalZoneSensibleW / (supplyMassFlow * SPECIFIC_HEAT_AIR_J_KG_K));
-    const W_supply_entering_zone = indoorAirW - (totalZoneLatentW / (supplyMassFlow * LATENT_HEAT_VAPORIZATION_J_KG));
-    
-    // The fan adds heat, so the air leaving the coil must be colder
-    const T_leaving_coil = T_supply_entering_zone - fanHeatDeltaT;
-    const W_leaving_coil = W_supply_entering_zone; // Fan adds sensible heat only
-    
+    // --- PSYCHROMETRIC CALCULATIONS ---
     const outdoorAir = getPsychrometrics("Outdoor Air", i.conditions.outdoorDB, outdoorAirW);
     const indoorAir = getPsychrometrics("Room Air", i.conditions.indoorDB, indoorAirW);
-    const leavingCoilAir = getPsychrometrics("Central Cooling Coil Outlet", T_leaving_coil, W_leaving_coil);
-    const supplyAir = getPsychrometrics("Supply Fan Outlet", T_supply_entering_zone, W_supply_entering_zone);
     
+    // Standard Calculation Path for ALL projects
+    const fanHeatDeltaT = (supplyMassFlow > 0) ? fanPowerW / (supplyMassFlow * SPECIFIC_HEAT_AIR_J_KG_K) : 0;
+    const T_supply_entering_zone_calc = i.conditions.indoorDB - (totalZoneSensibleW / (supplyMassFlow * SPECIFIC_HEAT_AIR_J_KG_K));
+    const W_supply_entering_zone_calc = indoorAirW - (totalZoneLatentW / (supplyMassFlow * LATENT_HEAT_VAPORIZATION_J_KG));
+    const T_leaving_coil_calc = T_supply_entering_zone_calc - fanHeatDeltaT;
+    const W_leaving_coil_calc = W_supply_entering_zone_calc;
     const returnAirflowLs = Math.max(0, supplyAirflowLs - ventilationLs);
-    const mixedAirDB = (returnAirflowLs * indoorAir.dryBulb + ventilationLs * outdoorAir.dryBulb) / supplyAirflowLs;
-    const mixedAirW = (returnAirflowLs * indoorAir.humidityRatio + ventilationLs * outdoorAir.humidityRatio) / supplyAirflowLs;
-    const mixedAir = getPsychrometrics("Mixed Air", mixedAirDB, mixedAirW);
+    const mixedAirDB_calc = (returnAirflowLs * indoorAir.dryBulb + ventilationLs * outdoorAir.dryBulb) / supplyAirflowLs;
+    const mixedAirW_calc = (returnAirflowLs * indoorAir.humidityRatio + ventilationLs * outdoorAir.humidityRatio) / supplyAirflowLs;
 
+    const mixedAir = getPsychrometrics("Mixed Air", mixedAirDB_calc, mixedAirW_calc);
+    const leavingCoilAir = getPsychrometrics("Central Cooling Coil Outlet", T_leaving_coil_calc, W_leaving_coil_calc);
+    const supplyAir = getPsychrometrics("Supply Fan Outlet", T_supply_entering_zone_calc, W_supply_entering_zone_calc);
+    
     const ventilationMassFlow = (ventilationLs / 1000) * AIR_DENSITY_KG_M3;
     const ventilationLoad = {
         sensible: ventilationMassFlow * SPECIFIC_HEAT_AIR_J_KG_K * (i.conditions.outdoorDB - i.conditions.indoorDB),
         latent: ventilationMassFlow * LATENT_HEAT_VAPORIZATION_J_KG * (outdoorAirW - indoorAirW)
     };
 
+    // Recalculate coil loads based on the (potentially overridden) states
     const sensibleCoilLoadW = supplyMassFlow * SPECIFIC_HEAT_AIR_J_KG_K * (mixedAir.dryBulb - leavingCoilAir.dryBulb);
     const latentCoilLoadW = supplyMassFlow * LATENT_HEAT_VAPORIZATION_J_KG * (mixedAir.humidityRatio - leavingCoilAir.humidityRatio);
     const totalCoilLoadW = sensibleCoilLoadW + latentCoilLoadW;
     const coilSHR = totalCoilLoadW > 0 ? sensibleCoilLoadW / totalCoilLoadW : 0;
     
-    let T_adp = leavingCoilAir.dryBulb - 2;
+    // Calculate ADP and Bypass Factor from the final coil states
+    let T_adp = leavingCoilAir.dryBulb - 2; // Initial guess
     for (let iter = 0; iter < 10; iter++) {
         const W_adp = getHumidityRatioFromRH(T_adp, 100);
+        if (Math.abs(mixedAir.humidityRatio - leavingCoilAir.humidityRatio) < 1e-9) break; // Avoid division by zero
         T_adp = mixedAir.dryBulb - ((mixedAir.dryBulb - leavingCoilAir.dryBulb) * (mixedAir.humidityRatio - W_adp)) / (mixedAir.humidityRatio - leavingCoilAir.humidityRatio);
     }
-    const bypassFactor = (leavingCoilAir.dryBulb - T_adp) / (mixedAir.dryBulb - T_adp);
+    const bypassFactor = (Math.abs(mixedAir.dryBulb - T_adp) > 1e-6) ? (leavingCoilAir.dryBulb - T_adp) / (mixedAir.dryBulb - T_adp) : 0;
 
     const Pws_leaving = getSatVaporPressure(supplyAir.dryBulb);
     const Pw_leaving = (supplyAir.humidityRatio * STANDARD_ATM_PASCALS) / (0.621945 + supplyAir.humidityRatio);
@@ -307,8 +335,10 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
                 wattsPerSqm: finalTotalCoilLoadW / i.zone.floorArea,
                 loadOccursAt: "Design",
                 outdoorAirDB: i.conditions.outdoorDB, outdoorAirWB: i.conditions.outdoorWB,
-                enteringDB: mixedAir.dryBulb, enteringWB: 0, // WB calculation is complex, omitting for now
-                leavingDB: leavingCoilAir.dryBulb, leavingWB: 0, // WB calculation is complex, omitting for now
+                enteringDB: mixedAir.dryBulb,
+                enteringWB: getWBFromDBandW(mixedAir.dryBulb, mixedAir.humidityRatio),
+                leavingDB: leavingCoilAir.dryBulb,
+                leavingWB: getWBFromDBandW(leavingCoilAir.dryBulb, leavingCoilAir.humidityRatio),
                 coilADP: T_adp, bypassFactor: bypassFactor, resultingRH: resultingRH, designSupplyTemp: supplyAir.dryBulb,
             },
             heating: {
@@ -483,17 +513,25 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
         <div className="bg-gray-800 p-6 sm:p-8 rounded-lg min-h-[400px] flex flex-col justify-between print:bg-transparent print:p-0">
             {currentStep === 1 && (
                 <div>
-                    <h2 className="text-2xl font-bold mb-6 flex items-center"><FolderIcon />{t('calculator_step_title_1')}</h2>
+                    <h2 className="text-2xl font-bold mb-4 flex items-center"><FolderIcon />{t('calculator_step_title_1')}</h2>
+                    <div className="mb-6 text-center">
+                        <button 
+                            onClick={() => setInputs(placeholderInputs)}
+                            className="text-cyan-400 border border-cyan-400 hover:bg-cyan-400 hover:text-gray-900 font-bold py-2 px-4 rounded transition-colors text-sm"
+                        >
+                            {t('loadExampleData')}
+                        </button>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <InputGroup label={t('projectName')} type="text" value={inputs.projectName} onChange={e => handleInputChange('projectName', null, e.target.value)} placeholder={placeholderInputs.projectName}/>
                         <InputGroup label={t('preparedBy')} type="text" value={inputs.preparedBy} onChange={e => handleInputChange('preparedBy', null, e.target.value)} placeholder={placeholderInputs.preparedBy}/>
                         <InputGroup label={t('location')} type="text" value={inputs.location} onChange={e => handleInputChange('location', null, e.target.value)} placeholder={placeholderInputs.location}/>
-                        <InputGroup label={t('floorArea')} type="number" value={inputs.zone.floorArea} onChange={e => handleInputChange('zone', 'floorArea', parseFloat(e.target.value))} placeholder={String(placeholderInputs.zone.floorArea)} />
-                        <InputGroup label={t('ceilingHeight')} type="number" value={inputs.zone.ceilingHeight} onChange={e => handleInputChange('zone', 'ceilingHeight', parseFloat(e.target.value))} placeholder={String(placeholderInputs.zone.ceilingHeight)} />
-                        <InputGroup label={t('designAirflowLs')} type="number" value={inputs.system.designAirflowLs} onChange={e => handleInputChange('system', 'designAirflowLs', parseFloat(e.target.value))} placeholder={String(placeholderInputs.system.designAirflowLs)} />
+                        <InputGroup label={t('floorArea')} type="number" value={inputs.zone.floorArea} onChange={e => handleInputChange('zone', 'floorArea', parseFloat(e.target.value))} />
+                        <InputGroup label={t('ceilingHeight')} type="number" value={inputs.zone.ceilingHeight} onChange={e => handleInputChange('zone', 'ceilingHeight', parseFloat(e.target.value))} />
+                        <InputGroup label={t('designAirflowLs')} type="number" value={inputs.system.designAirflowLs} onChange={e => handleInputChange('system', 'designAirflowLs', parseFloat(e.target.value))} />
                         <SelectGroup label={t('equipmentClass')} value={inputs.system.equipmentClass} onChange={e => handleInputChange('system', 'equipmentClass', e.target.value)} options={[{value: 'pkg_roof', label: t('eq_class_pkg_roof')}, {value: 'split_dx', label: t('eq_class_split_dx')}, {value: 'chiller_fcu', label: t('eq_class_chiller_fcu')}]}/>
-                        <InputGroup label={t('fanStaticPa')} type="number" value={inputs.system.fanStaticPa} onChange={e => handleInputChange('system', 'fanStaticPa', parseFloat(e.target.value))} placeholder={String(placeholderInputs.system.fanStaticPa)} />
-                        <InputGroup label={t('fanEfficiency')} type="number" value={inputs.system.fanEfficiency} onChange={e => handleInputChange('system', 'fanEfficiency', parseFloat(e.target.value))} placeholder={String(placeholderInputs.system.fanEfficiency)} />
+                        <InputGroup label={t('fanStaticPa')} type="number" value={inputs.system.fanStaticPa} onChange={e => handleInputChange('system', 'fanStaticPa', parseFloat(e.target.value))} />
+                        <InputGroup label={t('fanEfficiency')} type="number" value={inputs.system.fanEfficiency} onChange={e => handleInputChange('system', 'fanEfficiency', parseFloat(e.target.value))} />
                     </div>
                 </div>
             )}
@@ -501,10 +539,10 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
                  <div>
                     <h2 className="text-2xl font-bold mb-6 flex items-center"><UsersIcon />{t('calculator_step_title_2')}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <InputGroup label={t('peopleCount')} type="number" value={inputs.people.count} onChange={e => handleInputChange('people', 'count', parseInt(e.target.value, 10))} placeholder={String(placeholderInputs.people.count)} />
+                        <InputGroup label={t('peopleCount')} type="number" value={inputs.people.count} onChange={e => handleInputChange('people', 'count', parseInt(e.target.value, 10))} />
                         <SelectGroup label={t('activityLevel')} value={inputs.people.activity} onChange={e => handleInputChange('people', 'activity', e.target.value)} options={[{value: 'sitting', label: t('activity_sitting')}, {value: 'light_work', label: t('activity_light_work')}, {value: 'heavy_work', label: t('activity_heavy_work')}, {value: 'custom_mosque', label: t('activity_custom_mosque')}]}/>
-                        <InputGroup label={t('totalLightingPower')} type="number" value={inputs.lighting.loadW} onChange={e => handleInputChange('lighting', 'loadW', parseFloat(e.target.value))} placeholder={String(placeholderInputs.lighting.loadW)} />
-                        <InputGroup label={t('totalAppliancePower')} type="number" value={inputs.equipment.loadW} onChange={e => handleInputChange('equipment', 'loadW', parseFloat(e.target.value))} placeholder={String(placeholderInputs.equipment.loadW)} />
+                        <InputGroup label={t('totalLightingPower')} type="number" value={inputs.lighting.loadW} onChange={e => handleInputChange('lighting', 'loadW', parseFloat(e.target.value))} />
+                        <InputGroup label={t('totalAppliancePower')} type="number" value={inputs.equipment.loadW} onChange={e => handleInputChange('equipment', 'loadW', parseFloat(e.target.value))} />
                     </div>
                 </div>
             )}
@@ -512,13 +550,13 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
                  <div>
                     <h2 className="text-2xl font-bold mb-6 flex items-center"><BuildingIcon />{t('calculator_step_title_3')}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <InputGroup label={t('windowArea')} type="number" value={inputs.envelope.windowArea} onChange={e => handleInputChange('envelope', 'windowArea', parseFloat(e.target.value))} placeholder={String(placeholderInputs.envelope.windowArea)} />
-                        <InputGroup label={t('windowUValue')} type="number" value={inputs.envelope.windowUValue} onChange={e => handleInputChange('envelope', 'windowUValue', parseFloat(e.target.value))} placeholder={String(placeholderInputs.envelope.windowUValue)} />
-                        <InputGroup label={t('wallArea')} type="number" value={inputs.envelope.wallArea} onChange={e => handleInputChange('envelope', 'wallArea', parseFloat(e.target.value))} placeholder={String(placeholderInputs.envelope.wallArea)} />
-                        <InputGroup label={t('wallUValue')} type="number" value={inputs.envelope.wallUValue} onChange={e => handleInputChange('envelope', 'wallUValue', parseFloat(e.target.value))} placeholder={String(placeholderInputs.envelope.wallUValue)} />
-                        <InputGroup label={t('ceilingArea')} type="number" value={inputs.envelope.roofArea} onChange={e => handleInputChange('envelope', 'roofArea', parseFloat(e.target.value))} placeholder={String(placeholderInputs.envelope.roofArea)} />
-                        <InputGroup label={t('roofUValue')} type="number" value={inputs.envelope.roofUValue} onChange={e => handleInputChange('envelope', 'roofUValue', parseFloat(e.target.value))} placeholder={String(placeholderInputs.envelope.roofUValue)} />
-                        <InputGroup label={t('solarLoadW')} type="number" value={inputs.envelope.solarLoadW} onChange={e => handleInputChange('envelope', 'solarLoadW', parseFloat(e.target.value))} placeholder={String(placeholderInputs.envelope.solarLoadW)} />
+                        <InputGroup label={t('windowArea')} type="number" value={inputs.envelope.windowArea} onChange={e => handleInputChange('envelope', 'windowArea', parseFloat(e.target.value))} />
+                        <InputGroup label={t('windowUValue')} type="number" value={inputs.envelope.windowUValue} onChange={e => handleInputChange('envelope', 'windowUValue', parseFloat(e.target.value))} />
+                        <InputGroup label={t('wallArea')} type="number" value={inputs.envelope.wallArea} onChange={e => handleInputChange('envelope', 'wallArea', parseFloat(e.target.value))} />
+                        <InputGroup label={t('wallUValue')} type="number" value={inputs.envelope.wallUValue} onChange={e => handleInputChange('envelope', 'wallUValue', parseFloat(e.target.value))} />
+                        <InputGroup label={t('ceilingArea')} type="number" value={inputs.envelope.roofArea} onChange={e => handleInputChange('envelope', 'roofArea', parseFloat(e.target.value))} />
+                        <InputGroup label={t('roofUValue')} type="number" value={inputs.envelope.roofUValue} onChange={e => handleInputChange('envelope', 'roofUValue', parseFloat(e.target.value))} />
+                        <InputGroup label={t('solarLoadW')} type="number" value={inputs.envelope.solarLoadW} onChange={e => handleInputChange('envelope', 'solarLoadW', parseFloat(e.target.value))} />
                     </div>
                 </div>
             )}
@@ -526,15 +564,14 @@ const CalculatorPage: React.FC<CalculatorPageProps> = ({ onNavigate, onSaveProje
                  <div>
                     <h2 className="text-2xl font-bold mb-6 flex items-center"><ThermometerIcon className="h-6 w-6 ltr:mr-2 rtl:ml-2 text-cyan-400" />{t('calculator_step_title_4')}</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <InputGroup label={t('outdoorTemp')} type="number" value={inputs.conditions.outdoorDB} onChange={e => handleInputChange('conditions', 'outdoorDB', parseFloat(e.target.value))} placeholder={String(placeholderInputs.conditions.outdoorDB)} />
-                        <InputGroup label={t('outdoorWBT')} type="number" value={inputs.conditions.outdoorWB} onChange={e => handleInputChange('conditions', 'outdoorWB', parseFloat(e.target.value))} placeholder={String(placeholderInputs.conditions.outdoorWB)} />
-                        <InputGroup label={t('indoorTemp')} type="number" value={inputs.conditions.indoorDB} onChange={e => handleInputChange('conditions', 'indoorDB', parseFloat(e.target.value))} placeholder={String(placeholderInputs.conditions.indoorDB)} />
-                        <InputGroup label={t('indoorRH')} type="number" value={inputs.conditions.indoorRH} onChange={e => handleInputChange('conditions', 'indoorRH', parseFloat(e.target.value))} placeholder={String(placeholderInputs.conditions.indoorRH)} />
-                        {/* <InputGroup label={t('designSupplyTemp')} type="number" value={inputs.conditions.designSupplyTemp} onChange={e => handleInputChange('conditions', 'designSupplyTemp', parseFloat(e.target.value))} placeholder={String(placeholderInputs.conditions.designSupplyTemp)} /> */}
-                        <InputGroup label={t('winterOutdoorDB')} type="number" value={inputs.conditions.winterOutdoorDB} onChange={e => handleInputChange('conditions', 'winterOutdoorDB', parseFloat(e.target.value))} placeholder={String(placeholderInputs.conditions.winterOutdoorDB)} />
-                        <InputGroup label={t('lsPerPerson')} type="number" value={inputs.ventilation.lsPerPerson} onChange={e => handleInputChange('ventilation', 'lsPerPerson', parseFloat(e.target.value))} placeholder={String(placeholderInputs.ventilation.lsPerPerson)} />
-                        <InputGroup label={t('infiltrationACH')} type="number" value={inputs.ventilation.infiltrationACH} onChange={e => handleInputChange('ventilation', 'infiltrationACH', parseFloat(e.target.value))} placeholder={String(placeholderInputs.ventilation.infiltrationACH)} />
-                        <InputGroup label={t('safetyFactor')} type="number" value={inputs.system.safetyFactor} onChange={e => handleInputChange('system', 'safetyFactor', parseFloat(e.target.value))} placeholder={String(placeholderInputs.system.safetyFactor)} />
+                        <InputGroup label={t('outdoorTemp')} type="number" value={inputs.conditions.outdoorDB} onChange={e => handleInputChange('conditions', 'outdoorDB', parseFloat(e.target.value))} />
+                        <InputGroup label={t('outdoorWBT')} type="number" value={inputs.conditions.outdoorWB} onChange={e => handleInputChange('conditions', 'outdoorWB', parseFloat(e.target.value))} />
+                        <InputGroup label={t('indoorTemp')} type="number" value={inputs.conditions.indoorDB} onChange={e => handleInputChange('conditions', 'indoorDB', parseFloat(e.target.value))} />
+                        <InputGroup label={t('indoorRH')} type="number" value={inputs.conditions.indoorRH} onChange={e => handleInputChange('conditions', 'indoorRH', parseFloat(e.target.value))} />
+                        <InputGroup label={t('winterOutdoorDB')} type="number" value={inputs.conditions.winterOutdoorDB} onChange={e => handleInputChange('conditions', 'winterOutdoorDB', parseFloat(e.target.value))} />
+                        <InputGroup label={t('lsPerPerson')} type="number" value={inputs.ventilation.lsPerPerson} onChange={e => handleInputChange('ventilation', 'lsPerPerson', parseFloat(e.target.value))} />
+                        <InputGroup label={t('infiltrationACH')} type="number" value={inputs.ventilation.infiltrationACH} onChange={e => handleInputChange('ventilation', 'infiltrationACH', parseFloat(e.target.value))} />
+                        <InputGroup label={t('safetyFactor')} type="number" value={inputs.system.safetyFactor} onChange={e => handleInputChange('system', 'safetyFactor', parseFloat(e.target.value))} />
                     </div>
                 </div>
             )}
