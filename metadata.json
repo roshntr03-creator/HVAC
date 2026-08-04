@@ -1,5 +1,8 @@
 {
   "name": "Emaar HVAC Calculator",
   "description": "A web application for accurately calculating thermal loads and designing air conditioning systems. Supports both Arabic and English.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

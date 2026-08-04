@@ -20,7 +20,6 @@ const AppContent: React.FC = () => {
       }
     } catch (error) {
       console.error("Failed to load projects from localStorage", error);
-      // If parsing fails, it might be corrupted data, so we clear it.
       localStorage.removeItem('emaar_hvac_projects');
     }
   }, []);
@@ -33,7 +32,6 @@ const AppContent: React.FC = () => {
       console.error("Failed to save projects to localStorage", error);
     }
   }, [projects]);
-
 
   const handleNavigate = (targetPage: 'home' | 'calculator' | 'projects') => {
     if (targetPage === 'calculator') {
@@ -55,9 +53,7 @@ const AppContent: React.FC = () => {
         createdAt: new Date().toISOString()
     };
     
-    setProjects(prevProjects => [...prevProjects, newProject]);
-    
-    alert(t('projectSavedLocally', { projectName: inputs.projectName }));
+    setProjects(prevProjects => [newProject, ...prevProjects]);
     setPage('projects');
   };
   
@@ -69,14 +65,26 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const manualDeleteProject = (projectId: string) => {
-     if (confirm(t('deleteProjectConfirm'))) {
-       handleDeleteProject(projectId);
-    }
+  const handleImportProjects = (imported: Project[]) => {
+    setProjects(prev => {
+      const existingIds = new Set(prev.map(p => p.id));
+      const validNew = imported.filter(p => p.id && p.name && p.inputs && p.results && !existingIds.has(p.id));
+      return [...validNew, ...prev];
+    });
+  };
+
+  const handleDuplicateProject = (project: Project) => {
+    const duplicated: Project = {
+      ...project,
+      id: new Date().toISOString() + '-' + Math.random().toString(36).substring(2, 6),
+      name: project.name + ' (Copy)',
+      createdAt: new Date().toISOString()
+    };
+    setProjects(prev => [duplicated, ...prev]);
   };
   
   const Footer = () => (
-    <footer className="bg-gray-800 text-center p-4 text-gray-400 mt-auto">
+    <footer className="bg-gray-800 border-t border-gray-700 text-center p-4 text-gray-400 text-sm mt-auto print:hidden">
       <p>{t('footerCopyright')}</p>
     </footer>
   );
@@ -88,7 +96,14 @@ const AppContent: React.FC = () => {
       case 'calculator':
         return <CalculatorPage onNavigate={handleNavigate} onSaveProject={handleSaveProject} activeProject={activeProject} />;
       case 'projects':
-        return <ProjectsPage onNavigate={handleNavigate} projects={projects} onDeleteProject={manualDeleteProject} onLoadProject={handleLoadProject} />;
+        return <ProjectsPage 
+                  onNavigate={handleNavigate} 
+                  projects={projects} 
+                  onDeleteProject={handleDeleteProject} 
+                  onLoadProject={handleLoadProject} 
+                  onImportProjects={handleImportProjects}
+                  onDuplicateProject={handleDuplicateProject}
+                />;
       default:
         return <HomePage onNavigate={handleNavigate} />;
     }

@@ -103,6 +103,44 @@ export const translations = {
     cannotSaveBeforeCalc: "Cannot save project before calculating results.",
     projectSavedLocally: "Project \"{projectName}\" has been saved locally in your browser.",
 
+    // Room dimensions helper
+    roomLength: "Room Length (m)",
+    roomWidth: "Room Width (m)",
+    autoCalculatedArea: "Area calculated automatically from dimensions",
+
+    // Duct Sizing & Materials
+    ductSizingTitle: "Duct Sizing (Air Duct Dimensions)",
+    materialQuantitiesTitle: "Material Quantities Breakdown (for 10m Duct)",
+    ductVelocity: "Design Duct Air Velocity",
+    ductArea: "Duct Cross-Sectional Area",
+    circularDuctDia: "Circular Duct Diameter",
+    rectangularDuctDimensions: "Rectangular Duct (Width × Height)",
+    sheetMetalQty: "Galvanized Sheet Metal",
+    insulationQty: "Duct Acoustic/Thermal Insulation",
+    flangesQty: "Flanges",
+    screwsQty: "Screws & Fasteners",
+    hangersQty: "Hangers & Brackets",
+    ductLength: "Standard Calculation Duct Length",
+    report_title_duct: "Duct Sizing & Material Quantities Summary for {projectName}",
+
+    // Quick Executive Summary Dashboard
+    quickSummaryTitle: "Executive Sizing & Load Dashboard",
+    quickSummarySubtitle: "Key engineering indicators calculated for {projectName}",
+    totalCoolingLoad: "Total Cooling Load",
+    requiredAirflow: "Design Airflow Rate",
+    fanPower: "Supply Fan Motor Power",
+    heatingLoad: "Total Heating Load",
+    ductDimensions: "Recommended Duct Size",
+    materialQuantities: "Est. Materials (10m Duct)",
+
+    // Project Backup & Actions
+    exportProjects: "Export Backup (JSON)",
+    importProjects: "Import Projects",
+    duplicateProject: "Duplicate",
+    projectDuplicated: "Project duplicate created.",
+    importSuccess: "Successfully imported projects!",
+    importError: "Failed to parse projects file. Please ensure it is a valid JSON export.",
+
     // Report Component
     report_title_header: "Air System Sizing Summary for {projectName}",
     report_title_zone: "Zone Sizing Summary for {projectName}",
@@ -508,5 +546,43 @@ export const translations = {
     noProjects_title: "لا توجد مشاريع محفوظة",
     noProjects_desc: "ابدأ حسابًا جديدًا لحفظه هنا.",
     noProjects_cta: "ابدأ الحساب الآن",
+
+    // Room dimensions helper
+    roomLength: "طول الغرفة (م)",
+    roomWidth: "عرض الغرفة (م)",
+    autoCalculatedArea: "تم حساب المساحة تلقائياً من الأبعاد",
+
+    // Duct Sizing & Materials
+    ductSizingTitle: "تحديد مقاسات الدكت (مجارى الهواء)",
+    materialQuantitiesTitle: "حساب كميات المواد (لكل 10 متر دكت)",
+    ductVelocity: "سرعة الهواء التصميمية في الدكت",
+    ductArea: "مساحة المقطع العرضي للدكت",
+    circularDuctDia: "قطر الدكت الدائري",
+    rectangularDuctDimensions: "أبعاد الدكت المستطيل (العرض × الارتفاع)",
+    sheetMetalQty: "الصاج المجلفن المطلوب",
+    insulationQty: "العازل الحراري/الصوتي للدكت",
+    flangesQty: "الفلنجات (وصلات الربط)",
+    screwsQty: "المسامير والبراغي",
+    hangersQty: "الحوامل والتعاليق",
+    ductLength: "طول الدكت الحسابي القياسي",
+    report_title_duct: "ملخص مقاسات الدكت وكميات المواد لـ {projectName}",
+
+    // Quick Executive Summary Dashboard
+    quickSummaryTitle: "لوحة الملخص التنفيذي للأحمال والمقاسات",
+    quickSummarySubtitle: "المؤشرات الهندسية الرئيسية المحسوبة لـ {projectName}",
+    totalCoolingLoad: "الحمل الحراري الكلي للتبريد",
+    requiredAirflow: "معدل تدفق الهواء التصميمي",
+    fanPower: "قدرة محرك مروحة التغذية",
+    heatingLoad: "حمل التدفئة الكلي",
+    ductDimensions: "مقاس الدكت الموصى به",
+    materialQuantities: "كميات المواد التقديرية (10م دكت)",
+
+    // Project Backup & Actions
+    exportProjects: "تصدير نسخة احتياطية (JSON)",
+    importProjects: "استيراد مشاريع",
+    duplicateProject: "نسخ المشروع",
+    projectDuplicated: "تم إنشاء نسخة من المشروع بنجاح.",
+    importSuccess: "تم استيراد المشاريع بنجاح!",
+    importError: "فشل استيراد الملف. يرجى التأكد من اختيار ملف JSON صحيح.",
   }
 };

@@ -15,6 +15,8 @@ export interface InputState {
 
   // Zone & Space Data
   zone: {
+    roomLength?: number | ''; // m
+    roomWidth?: number | '';  // m
     floorArea: number | ''; // m²
     ceilingHeight: number | ''; // m
   };
@@ -87,6 +89,32 @@ export interface PsychrometricZoneData {
 }
 
 
+export interface DuctSizingResult {
+  airflowCFM: number;
+  airflowLs: number;
+  velocityFPM: number;
+  velocityMs: number;
+  areaSqFt: number;
+  areaSqM: number;
+  circularDiameterInches: number;
+  circularDiameterCm: number;
+  rectangularWidthInches: number;
+  rectangularWidthCm: number;
+  rectangularHeightInches: number;
+  rectangularHeightCm: number;
+  aspectRatio: string;
+}
+
+export interface MaterialQuantitiesResult {
+  ductLengthMeters: number;
+  perimeterMeters: number;
+  sheetMetalSqM: number;
+  insulationSqM: number;
+  flangesPcs: number;
+  screwsPcs: number;
+  hangersPcs: number;
+}
+
 export interface ResultsState {
   projectInfo: {
     projectName: string;
@@ -96,6 +124,11 @@ export interface ResultsState {
     date: string;
     time: string;
     altitude: number;
+  };
+
+  ductAndMaterials?: {
+    duct: DuctSizingResult;
+    materials: MaterialQuantitiesResult;
   };
   
   airSystemSizingSummary: {
